@@ -13,7 +13,6 @@ variable cluster_name {
   type        = string
 }
 
-# reference: https://docs.aws.amazon.com/eks/latest/userguide/platform-versions.html
 variable k8s_version {
   description = "kubernetes version"
   type        = string
@@ -314,23 +313,8 @@ variable map_users {
   }))
   default = [
     {
-      userarn  = "arn:aws:iam::954441176976:user/ricky_hartono"
-      username = "ricky_hartono"
-      groups   = ["system:masters"]
-    },
-    {
-      userarn  = "arn:aws:iam::954441176976:user/ardian"
-      username = "ardian"
-      groups   = ["system:masters"]
-    },
-    {
-      userarn  = "arn:aws:iam::954441176976:user/wendy.thedy"
-      username = "wendy.thedy"
-      groups   = ["system:masters"]
-    },
-    {
-      userarn  = "arn:aws:iam::954441176976:group/DevOps"
-      username = "devops"
+      rolearn  = "arn:aws:iam::207567799667:role/aws-role-root"
+      username = "terraform"
       groups   = ["system:masters"]
     }
   ]
