@@ -47,6 +47,36 @@ resource "aws_iam_role_policy_attachment" "registry" {
   role       = aws_iam_role.worker_node.name
 }
 
+# Add these resources for custom EC2 access
+resource "aws_iam_policy" "ec2_access" {
+  name        = "${var.cluster_name}-ec2-access"
+  description = "Custom policy to allow EC2 volume management"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateVolume",
+          "ec2:AttachVolume",
+          "ec2:DetachVolume",
+          "ec2:DeleteVolume",
+          "ec2:ModifyVolume",
+          "ec2:DescribeVolumeAttribute",
+          "ec2:DescribeVolumes",
+          "ec2:DescribeVolumeStatus"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_access" {
+  policy_arn = aws_iam_policy.ec2_access.arn
+  role       = aws_iam_role.worker_node.name
+}
+
 ################################################################################
 # Cluster worker nodes
 ################################################################################
