@@ -4,7 +4,7 @@ module eks {
     aws_account_id= "207567799667"
 
     aws_region="ap-southeast-1"
-    cluster_name="mobee-stg-sg-alph"
+    cluster_name="mob-stg-sg-alph"
     k8s_version= "1.28"
     cluster_public_access_cidrs=[
     # not used since endpoint_public_access is false just a placeholder to satisfy odd AWS api validation
