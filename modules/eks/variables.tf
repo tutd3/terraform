@@ -5,7 +5,7 @@ variable "cluster_name" {
 variable "kubernetes_version" {
   description = "Versi Kubernetes untuk EKS control plane"
   type        = string
-  default     = "1.31"
+  default     = "1.36"
 }
 
 variable "subnet_ids" {
