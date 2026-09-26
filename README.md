@@ -16,11 +16,27 @@ Actions dengan OIDC (tanpa access key yang disimpan sebagai secret).
 │   ├── s3/            # S3 bucket (versioning, encryption, block public access)
 │   └── eks/           # EKS cluster + node group + EBS CSI driver (untuk PVC)
 ├── envs/
-│   └── dev/           # Environment "dev" - wiring semua modul di atas
+│   └── dev/
+│       ├── vpc/       # Stack terpisah, state sendiri (envs/dev/vpc/terraform.tfstate)
+│       ├── s3/         # Stack terpisah, state sendiri, tidak bergantung stack lain
+│       ├── ec2/        # Stack terpisah, baca output vpc lewat terraform_remote_state
+│       └── eks/        # Stack terpisah, baca output vpc lewat terraform_remote_state
 └── .github/workflows/
-    ├── terraform-plan.yml   # Jalan otomatis tiap ada Pull Request ke main
-    └── terraform-apply.yml  # Jalan setelah merge ke main, nunggu approval manual
+    ├── terraform-plan.yml   # Jalan otomatis tiap ada Pull Request ke main (plan tiap stack)
+    └── terraform-apply.yml  # Jalan setelah merge ke main, nunggu 1x approval manual,
+                              # lalu apply berurutan: vpc -> s3 -> ec2 -> eks
 ```
+
+Tiap stack di `envs/dev/` itu **state Terraform-nya terpisah** (S3 key beda-beda).
+Artinya kamu bisa `plan`/`apply` salah satu stack saja tanpa menyentuh yang lain
+— misalnya ubah EC2 tidak akan pernah memicu perubahan di EKS atau S3.
+Karena EC2 dan EKS butuh VPC, mereka baca output-nya lewat data source
+`terraform_remote_state`, bukan lewat module Terraform biasa.
+
+**Urutan wajib untuk bring-up pertama kali:** `vpc` harus di-apply duluan,
+baru `ec2`/`eks` bisa jalan (karena mereka butuh state vpc sudah ada).
+`s3` independen, bebas kapan saja. Workflow `terraform-apply.yml` sudah
+menangani urutan ini otomatis.
 
 ## Alur kerja (workflow sehari-hari)
 
@@ -46,9 +62,10 @@ jalan (chicken-and-egg problem).
 
 - Kalau bentuknya baru (misal: RDS, ElastiCache): buat modul baru di `modules/<nama>/`
   mengikuti pola yang sama (main.tf, variables.tf, outputs.tf).
-- Kalau cuma nambah environment baru (misal staging/prod): duplikasi folder
-  `envs/dev` jadi `envs/staging`, ganti `key` di `backend.tf` dan value-value
-  di `variables.tf`/`terraform.tfvars`.
+- Kalau cuma nambah environment baru (misal staging/prod): duplikasi seluruh
+  folder `envs/dev` (semua stack di dalamnya) jadi `envs/staging`, ganti `key`
+  di tiap `backend.tf` (termasuk referensi `terraform_remote_state` di
+  `ec2/eks`) dan value-value di `variables.tf`.
 
 ## Keamanan
 
