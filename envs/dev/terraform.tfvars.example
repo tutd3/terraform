@@ -1,0 +1,10 @@
+# Copy file ini ke terraform.tfvars kalau mau override default.
+# terraform.tfvars TIDAK di-commit ke git (lihat .gitignore) supaya aman
+# untuk taruh value yang spesifik ke environment kamu.
+
+# aws_region      = "ap-southeast-3"
+# name_prefix     = "tutd3-dev"
+# enable_eks      = true
+# enable_ec2      = true
+# ec2_key_name    = "nama-key-pair-ssh-kamu"
+# app_bucket_name = "tutd3-dev-app-094983223261"

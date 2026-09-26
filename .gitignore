@@ -1,0 +1,24 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# File tfvars lokal (boleh beda-beda per orang/mesin) - contoh tetap di-commit
+# lewat *.tfvars.example
+terraform.tfvars
+*.auto.tfvars
+secrets.tfvars
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
