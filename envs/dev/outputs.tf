@@ -6,6 +6,10 @@ output "app_bucket_name" {
   value = module.app_bucket.bucket_name
 }
 
+output "test1_cempaka_bucket_name" {
+  value = module.test1_cempaka_bucket.bucket_name
+}
+
 output "ec2_public_ip" {
   value = var.enable_ec2 ? module.example_ec2[0].public_ip : null
 }
