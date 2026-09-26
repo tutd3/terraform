@@ -39,6 +39,12 @@ variable "node_max_size" {
   default = 3
 }
 
+variable "small_instance_mode" {
+  description = "Set true kalau node pakai instance kecil (mis. t3.micro/small) yang terbatas jumlah pod & memorinya - menurunkan replica addon ke 1 dan mengaktifkan VPC CNI prefix delegation. Set false untuk instance normal (t3.medium ke atas) supaya addon tetap HA (2 replica)."
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
