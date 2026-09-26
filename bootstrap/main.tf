@@ -26,6 +26,14 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+
+  default_tags {
+    tags = {
+      ManagedBy = "terraform"
+      Project   = "tutd3-infra"
+      Stack     = "bootstrap"
+    }
+  }
 }
 
 # --- 1. S3 bucket untuk Terraform remote state ---
