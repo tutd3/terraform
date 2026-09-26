@@ -20,12 +20,9 @@ jobs:
     name: Apply (dev)
     runs-on: ubuntu-latest
     # Environment ini dipasangi "required reviewers" di pengaturan repo GitHub,
-    # jadi job ini akan BERHENTI dan menunggu approval manual sebelum lanjut
-    # ke step apply.
+    # jadi job ini akan BERHENTI dan menunggu approval manual sebelum lanjut.
+    # Satu approval ini menutupi apply ke-4 stack sekaligus (lihat step di bawah).
     environment: dev-apply
-    defaults:
-      run:
-        working-directory: envs/dev
 
     steps:
       - name: Checkout
@@ -42,8 +39,14 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false
+      # Urutan wajib: vpc dulu (eks & ec2 baca output-nya lewat
+      # terraform_remote_state), s3 independen jadi bebas kapan saja.
+      - name: Terraform Apply (vpc -> s3 -> ec2 -> eks)
+        run: |
+          set -e
+          for stack in vpc s3 ec2 eks; do
+            echo "::group::Apply stack: $stack"
+            terraform -chdir="envs/dev/$stack" init -input=false
+            terraform -chdir="envs/dev/$stack" apply -auto-approve -input=false
+            echo "::endgroup::"
+          done

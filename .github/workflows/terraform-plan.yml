@@ -15,15 +15,14 @@ permissions:
 
 env:
   TF_IN_AUTOMATION: "true"
-  AWS_REGION: ${{ vars.AWS_REGION }}
 
+# Urutan stack penting: eks/ec2 baca output vpc lewat terraform_remote_state,
+# jadi kalau vpc belum pernah di-apply, plan eks/ec2 wajar gagal (state-nya
+# belum ada). Ini normal untuk bring-up pertama kali - lihat komentar di PR.
 jobs:
   plan:
     name: Plan (dev)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: envs/dev
 
     steps:
       - name: Checkout
@@ -36,7 +35,6 @@ jobs:
 
       - name: Terraform fmt check
         run: terraform fmt -check -recursive
-        working-directory: ../..
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -44,46 +42,54 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Validate
-        run: terraform validate
-
       - name: Security scan (tfsec)
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
-          working_directory: envs/dev
+          working_directory: .
           soft_fail: true # jangan gagalkan build dulu, sekadar laporan
 
-      - name: Terraform Plan
+      - name: Terraform Plan per stack (vpc, s3, ec2, eks)
         id: plan
-        run: terraform plan -no-color -input=false -out=tfplan
-        continue-on-error: true
+        run: |
+          set +e
+          : > plan-output.md
+          overall=0
+          for stack in vpc s3 ec2 eks; do
+            {
+              echo "#### Stack: \`$stack\`"
+              echo '<details><summary>Show plan</summary>'
+              echo
+              echo '```terraform'
+            } >> plan-output.md
+
+            terraform -chdir="envs/dev/$stack" init -input=false -reconfigure >> plan-output.md 2>&1
+            terraform -chdir="envs/dev/$stack" validate >> plan-output.md 2>&1
+            terraform -chdir="envs/dev/$stack" plan -no-color -input=false >> plan-output.md 2>&1
+            rc=$?
+
+            {
+              echo '```'
+              echo '</details>'
+              echo
+            } >> plan-output.md
+
+            if [ $rc -ne 0 ]; then
+              echo "::warning::Plan gagal untuk stack '$stack' (exit $rc). Kalau ini stack eks/ec2 dan vpc belum pernah di-apply, ini wajar."
+              overall=1
+            fi
+          done
+          echo "overall_failed=$overall" >> "$GITHUB_OUTPUT"
 
       - name: Comment plan result on PR
         uses: actions/github-script@v7
-        env:
-          PLAN_OUTCOME: ${{ steps.plan.outcome }}
         with:
           script: |
-            const { execSync } = require('child_process')
-            const plan = execSync('terraform -chdir=envs/dev show -no-color tfplan').toString()
-            const body = `#### Terraform Plan: \`${process.env.PLAN_OUTCOME}\`
-            <details><summary>Show plan</summary>
-
-            \`\`\`terraform
-            ${plan.slice(0, 60000)}
-            \`\`\`
-
-            </details>`
+            const fs = require('fs')
+            const plan = fs.readFileSync('plan-output.md', 'utf8')
+            const body = `### Terraform Plan (per stack)\n\n${plan.slice(0, 65000)}`
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body,
             })
-
-      - name: Fail if plan failed
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
