@@ -19,6 +19,16 @@ module "app_bucket" {
   }
 }
 
+module "test1_cempaka_bucket" {
+  source = "../../modules/s3"
+
+  bucket_name = "test1-cempaka"
+
+  tags = {
+    Environment = "dev"
+  }
+}
+
 module "example_ec2" {
   count  = var.enable_ec2 ? 1 : 0
   source = "../../modules/ec2"
