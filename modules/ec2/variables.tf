@@ -33,8 +33,9 @@ variable "iam_instance_profile_name" {
 }
 
 variable "root_volume_size_gb" {
+  # AMI Amazon Linux 2023 default butuh volume >= 30GB (batas dari snapshot-nya)
   type    = number
-  default = 20
+  default = 30
 }
 
 variable "ingress_rules" {

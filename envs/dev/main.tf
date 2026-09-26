@@ -57,8 +57,9 @@ module "eks" {
   count  = var.enable_eks ? 1 : 0
   source = "../../modules/eks"
 
-  cluster_name = "${var.name_prefix}-eks"
-  subnet_ids   = concat(module.vpc.public_subnet_ids, module.vpc.private_subnet_ids)
+  cluster_name        = "${var.name_prefix}-eks"
+  subnet_ids          = concat(module.vpc.public_subnet_ids, module.vpc.private_subnet_ids)
+  node_instance_types = var.eks_node_instance_types
 
   tags = {
     Environment = "dev"
