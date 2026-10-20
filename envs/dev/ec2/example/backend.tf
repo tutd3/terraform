@@ -10,7 +10,7 @@ terraform {
 
   backend "s3" {
     bucket       = "tutd3-terraform-state-094983223261"
-    key          = "envs/dev/ec2/terraform.tfstate"
+    key          = "envs/dev/ec2/example/terraform.tfstate"
     region       = "ap-southeast-3"
     encrypt      = true
     use_lockfile = true
@@ -25,7 +25,7 @@ provider "aws" {
       Environment = "dev"
       ManagedBy   = "terraform"
       Project     = "tutd3-infra"
-      Stack       = "ec2"
+      Stack       = "ec2/example"
     }
   }
 }

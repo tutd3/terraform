@@ -48,23 +48,34 @@ jobs:
           working_directory: .
           soft_fail: true # jangan gagalkan build dulu, sekadar laporan
 
-      - name: Terraform Plan per stack (vpc, s3, ec2, eks)
+      - name: Terraform Plan per stack (vpc, s3, ec2/*, eks)
         id: plan
         run: |
           set +e
           : > plan-output.md
           overall=0
-          for stack in vpc s3 ec2 eks; do
+
+          # vpc, s3, eks itu stack tunggal. ec2 itu kategori - tiap subfolder
+          # di envs/dev/ec2/ adalah instance EC2 sendiri (nama folder = tujuan).
+          DIRS=("envs/dev/vpc" "envs/dev/s3")
+          for d in envs/dev/ec2/*/; do
+            [ -d "$d" ] || continue
+            DIRS+=("envs/dev/ec2/$(basename "$d")")
+          done
+          DIRS+=("envs/dev/eks")
+
+          for dir in "${DIRS[@]}"; do
+            label="${dir#envs/dev/}"
             {
-              echo "#### Stack: \`$stack\`"
+              echo "#### Stack: \`$label\`"
               echo '<details><summary>Show plan</summary>'
               echo
               echo '```terraform'
             } >> plan-output.md
 
-            terraform -chdir="envs/dev/$stack" init -input=false -reconfigure >> plan-output.md 2>&1
-            terraform -chdir="envs/dev/$stack" validate >> plan-output.md 2>&1
-            terraform -chdir="envs/dev/$stack" plan -no-color -input=false >> plan-output.md 2>&1
+            terraform -chdir="$dir" init -input=false -reconfigure >> plan-output.md 2>&1
+            terraform -chdir="$dir" validate >> plan-output.md 2>&1
+            terraform -chdir="$dir" plan -no-color -input=false >> plan-output.md 2>&1
             rc=$?
 
             {
@@ -74,7 +85,7 @@ jobs:
             } >> plan-output.md
 
             if [ $rc -ne 0 ]; then
-              echo "::warning::Plan gagal untuk stack '$stack' (exit $rc). Kalau ini stack eks/ec2 dan vpc belum pernah di-apply, ini wajar."
+              echo "::warning::Plan gagal untuk stack '$label' (exit $rc). Kalau ini stack eks/ec2 dan vpc belum pernah di-apply, ini wajar."
               overall=1
             fi
           done

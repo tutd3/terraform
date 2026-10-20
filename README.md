@@ -17,14 +17,15 @@ Actions dengan OIDC (tanpa access key yang disimpan sebagai secret).
 │   └── eks/           # EKS cluster + node group + EBS CSI driver (untuk PVC)
 ├── envs/
 │   └── dev/
-│       ├── vpc/       # Stack terpisah, state sendiri (envs/dev/vpc/terraform.tfstate)
-│       ├── s3/         # Stack terpisah, state sendiri, tidak bergantung stack lain
-│       ├── ec2/        # Stack terpisah, baca output vpc lewat terraform_remote_state
-│       └── eks/        # Stack terpisah, baca output vpc lewat terraform_remote_state
+│       ├── vpc/           # Stack terpisah, state sendiri (envs/dev/vpc/terraform.tfstate)
+│       ├── s3/             # Stack terpisah, state sendiri, tidak bergantung stack lain
+│       ├── ec2/            # KATEGORI, bukan satu stack - tiap subfolder = 1 instance EC2
+│       │   └── example/    #   instance pertama (template untuk tambah instance baru)
+│       └── eks/            # Stack terpisah, baca output vpc lewat terraform_remote_state
 └── .github/workflows/
     ├── terraform-plan.yml   # Jalan otomatis tiap ada Pull Request ke main (plan tiap stack)
-    └── terraform-apply.yml  # Jalan setelah merge ke main, nunggu 1x approval manual,
-                              # lalu apply berurutan: vpc -> s3 -> ec2 -> eks
+    └── terraform-apply.yml  # Jalan setelah merge ke main (atau manual trigger), nunggu
+                              # 1x approval, lalu apply berurutan: vpc -> s3 -> ec2/* -> eks
 ```
 
 Tiap stack di `envs/dev/` itu **state Terraform-nya terpisah** (S3 key beda-beda).
@@ -34,9 +35,35 @@ Karena EC2 dan EKS butuh VPC, mereka baca output-nya lewat data source
 `terraform_remote_state`, bukan lewat module Terraform biasa.
 
 **Urutan wajib untuk bring-up pertama kali:** `vpc` harus di-apply duluan,
-baru `ec2`/`eks` bisa jalan (karena mereka butuh state vpc sudah ada).
+baru `ec2/*`/`eks` bisa jalan (karena mereka butuh state vpc sudah ada).
 `s3` independen, bebas kapan saja. Workflow `terraform-apply.yml` sudah
 menangani urutan ini otomatis.
+
+### Punya banyak instance EC2 untuk tujuan berbeda-beda
+
+`envs/dev/ec2/` adalah kategori, bukan satu stack tunggal. Tiap subfolder di
+dalamnya adalah instance EC2 independen (state sendiri), nama foldernya bebas
+sesuai tujuan - misalnya:
+
+```
+envs/dev/ec2/
+├── example/   # sudah ada
+├── psql/      # contoh: server PostgreSQL
+└── posthog/   # contoh: self-hosted PostHog
+```
+
+Untuk tambah instance baru: copy folder `ec2/example/` jadi `ec2/<nama-baru>/`,
+ganti `key` di `backend.tf` (jadi `envs/dev/ec2/<nama-baru>/terraform.tfstate`),
+sesuaikan `main.tf`/`variables.tf` sesuai kebutuhan (ukuran instance, AMI,
+public/private, dll). Tidak perlu ubah workflow sama sekali - CI otomatis
+men-discover semua subfolder di `ec2/`.
+
+Tiap instance EC2 bisa diatur:
+- `public` (bool) - `true` = subnet publik (dapat IP publik), `false` = subnet
+  privat (cuma bisa diakses dari dalam VPC, tetap bisa akses internet keluar
+  lewat NAT gateway).
+- `availability_zone` (string, mis. `"ap-southeast-3b"`) - kosongkan untuk
+  otomatis pakai AZ pertama yang tersedia.
 
 ## Alur kerja (workflow sehari-hari)
 
@@ -47,6 +74,29 @@ menangani urutan ini otomatis.
 5. Setelah merge, workflow apply akan **berhenti dan menunggu approval** kamu
    di tab "Actions" (karena environment `dev-apply` di-protect dengan required
    reviewer). Klik "Review deployments" -> Approve untuk lanjut apply.
+
+## Apply sebagian stack saja (hemat cost / testing)
+
+Tidak harus selalu apply semua stack. Dua cara:
+
+1. **Manual, self-service (direkomendasikan):** tab **Actions** -> workflow
+   **"Terraform Apply"** -> **Run workflow** -> isi field `stacks`, misal:
+   - `vpc` - cuma VPC
+   - `vpc s3 eks` (atau pakai koma: `vpc,s3,eks`) - beberapa stack
+   - `ec2` - semua instance EC2
+   - `ec2/psql` - cuma instance EC2 tertentu
+   - `k8s` bisa dipakai sebagai alias `eks`
+   - Kosongkan untuk apply semua (default)
+
+   Urutan eksekusi selalu dijaga otomatis (`vpc -> s3 -> ec2/* -> eks`) apa pun
+   urutan yang kamu ketik. Tetap ada approval gate seperti biasa.
+
+2. **Repo variable `APPLY_STACKS`:** default untuk auto-apply saat merge PR ke
+   `main` (push trigger), format sama seperti input di atas. Kosongkan/hapus
+   variable ini untuk balik ke apply-semua-stack sebagai default.
+   ```bash
+   gh variable set APPLY_STACKS --repo tutd3/terraform --body "vpc s3"
+   ```
 
 ## Sekali di awal (wajib, sebelum CI/CD bisa jalan)
 
