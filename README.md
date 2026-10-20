@@ -20,7 +20,7 @@ Actions dengan OIDC (tanpa access key yang disimpan sebagai secret).
 │   ├── production/        # ENVIRONMENT - sudah live, dipakai GitHub Environment "production"
 │   │   ├── vpc/            # Stack terpisah, state sendiri
 │   │   ├── iam/             # Stack terpisah, group readonly/admin + user
-│   │   │   └── users/        # Daftar user: 1 file kosong = 1 user (readonly/ atau admin/)
+│   │   │   └── users.auto.tfvars  # Daftar nama user per group, dibaca otomatis
 │   │   ├── s3/              # KATEGORI - tiap subfolder = 1 bucket S3
 │   │   │   ├── app/
 │   │   │   └── test1-cempaka/
@@ -94,30 +94,28 @@ Kalau stack `eks` ada, user di group ini juga otomatis dapat akses Kubernetes
 yang setara (`AmazonEKSViewPolicy` untuk readonly, `AmazonEKSClusterAdminPolicy`
 untuk admin) - tidak perlu setting tambahan, lihat `envs/<environment>/eks/main.tf`.
 
-Untuk nambah/pindah/hapus user, **taruh/pindahkan/hapus file kosong** di:
+Untuk nambah/pindah/hapus user, edit `envs/<environment>/iam/users.auto.tfvars`
+(file ini dibaca OTOMATIS oleh Terraform, tidak perlu `-var-file`):
 
-```
-envs/<environment>/iam/users/readonly/<nama-user>
-envs/<environment>/iam/users/admin/<nama-user>
-```
-
-Nama file = nama IAM user, isi file tidak dipakai (boleh kosong). Misal mau
-tambah user "budi" sebagai readonly:
-
-```
-touch envs/production/iam/users/readonly/budi
+```hcl
+# envs/production/iam/users.auto.tfvars
+readonly_users = ["test1", "budi"]
+admin_users    = ["test2"]
 ```
 
-lalu buka PR seperti biasa - user otomatis masuk ke group yang sesuai setelah
-merge & apply. Pindah tier = pindahkan file ke folder lain (AMAN, tidak
-menghapus/membuat ulang user aslinya - lihat README.md di tiap folder & komentar
-di `modules/iam/main.tf`). Hapus file = user ikut dihapus total saat PR
-berikutnya di-apply.
+lalu buka PR seperti biasa - setelah merge & apply, Terraform yang membuat
+user IAM baru itu (bukan kamu bikin manual di AWS Console dulu). Pindah tier =
+pindahkan nama dari satu list ke list lain (AMAN, tidak menghapus/membuat
+ulang user aslinya - lihat komentar di `modules/iam/main.tf`). Hapus nama dari
+kedua list = user ikut dihapus total saat PR berikutnya di-apply.
 
 Kalau user yang mau didaftarkan **sudah ada** di AWS (dibuat manual lewat
-Console), jangan langsung taruh file & merge - perlu `terraform import` dulu
-supaya Terraform tidak mencoba membuat user baru yang namanya bentrok (lihat
-riwayat `test1`/`test2`/`terrafrom` di repo ini sebagai contoh).
+Console sebelum ini, atau oleh orang lain), jangan langsung tambah nama &
+merge - perlu `terraform import` dulu supaya Terraform tidak mencoba membuat
+user baru yang namanya bentrok (lihat riwayat `test1`/`test2`/`terrafrom` di
+repo ini sebagai contoh, termasuk kasus `terrafrom` yang sengaja dikeluarkan
+dari pengelolaan Terraform lewat `terraform state rm` karena itu akun AWS
+CLI yang tidak boleh ikut ter-destroy).
 
 **Soal password console login:** secara default user yang dibuat TIDAK dapat
 password (programmatic access only / kamu atur lewat access key secara
