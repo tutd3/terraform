@@ -68,6 +68,12 @@ variable "node_sg_allow_web_public" {
   default     = true
 }
 
+variable "enable_network_policy" {
+  description = "Aktifkan kapasitas enforce Kubernetes NetworkPolicy lewat vpc-cni (tidak perlu Calico/Cilium tambahan). Tidak ada efek sampai ada objek NetworkPolicy yang dibuat lewat kubectl."
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
