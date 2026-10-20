@@ -165,19 +165,27 @@ resource "aws_eks_addon" "ebs_csi" {
   depends_on = [aws_eks_node_group.default]
 }
 
+locals {
+  # - Prefix delegation: menaikkan drastis jumlah IP (dan jumlah pod) yang
+  #   bisa dijadwalkan per node, penting untuk instance kecil seperti
+  #   t3.micro yang defaultnya cuma muat segelintir pod (dibatasi jumlah
+  #   ENI/IP, bukan CPU/RAM).
+  # - enableNetworkPolicy: cuma MENGAKTIFKAN KAPASITAS enforce Kubernetes
+  #   NetworkPolicy (vpc-cni sudah native support, tidak perlu Calico/Cilium
+  #   tambahan). Tidak ada efek langsung ke traffic yang ada sekarang - baru
+  #   berlaku begitu ada objek NetworkPolicy yang dibuat (lewat kubectl,
+  #   bukan Terraform).
+  vpc_cni_config = merge(
+    var.small_instance_mode ? { env = { ENABLE_PREFIX_DELEGATION = "true" } } : {},
+    var.enable_network_policy ? { enableNetworkPolicy = "true" } : {},
+  )
+}
+
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "vpc-cni"
   resolve_conflicts_on_update = "OVERWRITE"
-
-  # Prefix delegation menaikkan drastis jumlah IP (dan jumlah pod) yang bisa
-  # dijadwalkan per node, penting untuk instance kecil seperti t3.micro yang
-  # defaultnya cuma muat segelintir pod (dibatasi jumlah ENI/IP, bukan CPU/RAM).
-  configuration_values = var.small_instance_mode ? jsonencode({
-    env = {
-      ENABLE_PREFIX_DELEGATION = "true"
-    }
-  }) : null
+  configuration_values        = length(local.vpc_cni_config) > 0 ? jsonencode(local.vpc_cni_config) : null
 }
 
 resource "aws_eks_addon" "coredns" {
