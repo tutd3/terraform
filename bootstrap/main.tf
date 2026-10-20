@@ -26,6 +26,14 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
+
+  default_tags {
+    tags = {
+      ManagedBy = "terraform"
+      Project   = "tutd3-infra"
+      Stack     = "bootstrap"
+    }
+  }
 }
 
 # --- 1. S3 bucket untuk Terraform remote state ---
@@ -112,11 +120,53 @@ resource "aws_iam_role" "github_actions_terraform" {
   max_session_duration = 3600
 }
 
-# Sesuai permintaan awal: full admin access untuk mempercepat development.
-# CATATAN: begitu semua modul (EC2/S3/EKS) sudah stabil, sangat disarankan
-# mengganti ini dengan custom policy yang scoped ke service yang benar-benar
-# dipakai, bukan AdministratorAccess permanen.
-resource "aws_iam_role_policy_attachment" "admin" {
+# Custom policy, scoped ke service yang benar-benar dipakai Terraform di repo
+# ini: EC2/VPC, EKS, S3, IAM (bukan AdministratorAccess lagi).
+#
+# CATATAN JUJUR soal batasnya: dalam tiap service masih full akses ("*"),
+# bukan per-action. Yang paling sensitif adalah IAM - role ini tetap bisa
+# bikin IAM user/role baru dengan akses admin (self-escalation path), karena
+# resource-nya tidak dibatasi ke nama tertentu. Untuk akun solo seperti ini,
+# trade-off ini saya anggap wajar (perbaikan besar dari full admin lintas
+# SEMUA service AWS), tapi kalau mau lebih ketat lagi, resource IAM bisa
+# dibatasi ke ARN yang match prefix proyek (mis. "tutd3-*") - kasih tahu saya
+# kalau mau itu.
+resource "aws_iam_policy" "github_actions_terraform" {
+  name        = "${var.role_name}-policy"
+  description = "Scoped permission untuk GitHub Actions CI/CD Terraform repo ini - EC2/VPC, EKS, S3, IAM."
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "EC2AndVPC"
+        Effect   = "Allow"
+        Action   = "ec2:*"
+        Resource = "*"
+      },
+      {
+        Sid      = "EKS"
+        Effect   = "Allow"
+        Action   = "eks:*"
+        Resource = "*"
+      },
+      {
+        Sid      = "S3"
+        Effect   = "Allow"
+        Action   = "s3:*"
+        Resource = "*"
+      },
+      {
+        Sid      = "IAM"
+        Effect   = "Allow"
+        Action   = "iam:*"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "scoped" {
   role       = aws_iam_role.github_actions_terraform.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+  policy_arn = aws_iam_policy.github_actions_terraform.arn
 }
