@@ -11,7 +11,7 @@ variable "name_prefix" {
 variable "readonly_users" {
   description = "Daftar nama IAM user readonly. Kosongkan dulu, isi kapan saja lewat PR."
   type        = list(string)
-  default     = ["test1"]
+  default     = ["test1", "terrafrom"]
 }
 
 variable "admin_users" {
