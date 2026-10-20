@@ -11,9 +11,10 @@ on:
     inputs:
       stacks:
         description: >-
-          Stack yang mau di-apply, pisah spasi/koma: vpc, s3, eks (atau k8s),
-          ec2 (semua instance EC2), atau ec2/<nama> untuk satu instance EC2
-          spesifik (mis. "ec2/psql"). Kosongkan untuk apply semua.
+          Stack yang mau di-apply, pisah spasi/koma: vpc, eks (atau k8s),
+          s3 (semua bucket) / s3/<nama> (satu bucket, mis. "s3/loki-logs"),
+          ec2 (semua instance) / ec2/<nama> (satu instance, mis. "ec2/psql").
+          Kosongkan untuk apply semua.
         required: false
         type: string
       environment:
@@ -74,14 +75,15 @@ jobs:
       #      trigger manual.
       #   3. Semua stack (default kalau keduanya kosong).
       #
-      # "ec2" itu kategori, bukan satu stack - bisa ada banyak instance EC2
-      # dengan tujuan beda-beda di envs/dev/ec2/<nama>/ (mis. example, psql,
-      # posthog). Tulis "ec2" untuk apply SEMUA instance EC2, atau
-      # "ec2/<nama>" untuk apply satu instance spesifik saja.
+      # "s3" dan "ec2" itu KATEGORI, bukan satu stack - bisa ada banyak
+      # instance dengan tujuan beda-beda di envs/dev/<kategori>/<nama>/
+      # (mis. s3/app, s3/loki-logs, ec2/example, ec2/psql). Tulis nama
+      # kategorinya saja untuk apply SEMUA instance di situ, atau
+      # "<kategori>/<nama>" untuk satu instance spesifik saja.
       #
-      # Urutan eksekusi SELALU vpc -> s3 -> ec2/* -> eks, apa pun urutan di
+      # Urutan eksekusi SELALU vpc -> s3/* -> ec2/* -> eks, apa pun urutan di
       # input, karena eks & ec2 baca output vpc lewat terraform_remote_state.
-      - name: "Terraform Apply (urutan tetap: vpc -> s3 -> ec2/* -> eks)"
+      - name: "Terraform Apply (urutan tetap: vpc -> s3/* -> ec2/* -> eks)"
         env:
           DISPATCH_STACKS: ${{ github.event.inputs.stacks }}
           DEFAULT_STACKS: ${{ vars.APPLY_STACKS }}
@@ -95,22 +97,23 @@ jobs:
           DIRS=()
 
           case "$SELECTED" in *" vpc "*) DIRS+=("envs/dev/vpc") ;; esac
-          case "$SELECTED" in *" s3 "*) DIRS+=("envs/dev/s3") ;; esac
 
-          # Setiap subfolder di envs/dev/ec2/ adalah instance EC2 sendiri,
+          # Setiap subfolder di envs/dev/<kategori>/ adalah instance sendiri,
           # dengan tujuan masing-masing (nama folder = nama tujuannya).
-          for d in envs/dev/ec2/*/; do
-            [ -d "$d" ] || continue
-            name="$(basename "$d")"
-            case "$SELECTED" in
-              *" ec2 "*|*" ec2/$name "*) DIRS+=("envs/dev/ec2/$name") ;;
-            esac
+          for category in s3 ec2; do
+            for d in "envs/dev/$category"/*/; do
+              [ -d "$d" ] || continue
+              name="$(basename "$d")"
+              case "$SELECTED" in
+                *" $category "*|*" $category/$name "*) DIRS+=("envs/dev/$category/$name") ;;
+              esac
+            done
           done
 
           case "$SELECTED" in *" eks "*) DIRS+=("envs/dev/eks") ;; esac
 
           if [ ${#DIRS[@]} -eq 0 ]; then
-            echo "::error::Tidak ada stack valid di input '$RAW' (pilihan: vpc, s3, ec2 atau ec2/<nama>, eks/k8s)"
+            echo "::error::Tidak ada stack valid di input '$RAW' (pilihan: vpc, s3 atau s3/<nama>, ec2 atau ec2/<nama>, eks/k8s)"
             exit 1
           fi
 
