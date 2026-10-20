@@ -8,14 +8,19 @@ variable "name_prefix" {
   default = "tutd3-staging"
 }
 
+# Nilai readonly_users/admin_users TIDAK di-default di sini - isinya ada di
+# users.auto.tfvars (file terpisah khusus data, lihat README.md bagian "IAM
+# user & akses"). Terraform otomatis membaca *.auto.tfvars tanpa perlu flag
+# apa pun. Dipisah dari file ini supaya definisi variable (type/description)
+# tidak campur dengan datanya.
 variable "readonly_users" {
-  description = "Daftar nama IAM user readonly. Kosongkan dulu, isi kapan saja lewat PR."
+  description = "Daftar nama IAM user readonly - isi lewat users.auto.tfvars, bukan default di sini."
   type        = list(string)
   default     = []
 }
 
 variable "admin_users" {
-  description = "Daftar nama IAM user admin. Kosongkan dulu, isi kapan saja lewat PR."
+  description = "Daftar nama IAM user admin - isi lewat users.auto.tfvars, bukan default di sini."
   type        = list(string)
   default     = []
 }

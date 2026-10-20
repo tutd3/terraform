@@ -19,6 +19,11 @@ terraform.tfvars
 *.auto.tfvars
 secrets.tfvars
 
+# Kecuali: users.auto.tfvars di iam/ BUKAN rahasia/lokal - isinya cuma daftar
+# nama user (readonly/admin), SENGAJA di-commit & di-review lewat PR (lihat
+# README.md bagian "IAM user & akses").
+!envs/*/iam/users.auto.tfvars
+
 # OS / editor
 .DS_Store
 .idea/
