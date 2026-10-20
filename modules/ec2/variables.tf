@@ -28,8 +28,15 @@ variable "key_name" {
 }
 
 variable "iam_instance_profile_name" {
-  type    = string
-  default = null
+  description = "Nama instance profile IAM yang SUDAH ADA untuk dipakai instance ini. Diabaikan kalau enable_ssm=true (modul bikin & pakai instance profile sendiri untuk SSM)."
+  type        = string
+  default     = null
+}
+
+variable "enable_ssm" {
+  description = "Set true (default) supaya instance ini otomatis bisa diakses lewat AWS Systems Manager Session Manager (tidak perlu SSH key/port 22 terbuka sama sekali) - modul bikin sendiri IAM role+instance profile dengan policy AmazonSSMManagedInstanceCore. Set false untuk pakai iam_instance_profile_name sendiri (atau tidak pakai profile sama sekali)."
+  type        = bool
+  default     = true
 }
 
 variable "root_volume_size_gb" {

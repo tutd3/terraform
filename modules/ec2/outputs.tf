@@ -13,3 +13,8 @@ output "public_ip" {
 output "security_group_id" {
   value = aws_security_group.this.id
 }
+
+output "ssm_role_arn" {
+  description = "ARN role IAM yang dipakai instance untuk SSM - null kalau enable_ssm=false."
+  value       = var.enable_ssm ? aws_iam_role.ssm[0].arn : null
+}
