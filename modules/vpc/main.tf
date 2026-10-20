@@ -86,6 +86,18 @@ resource "aws_route_table" "public" {
     gateway_id = aws_internet_gateway.this.id
   }
 
+  dynamic "route" {
+    for_each = var.additional_public_routes
+    content {
+      cidr_block                = route.value.cidr_block
+      gateway_id                = route.value.gateway_id
+      nat_gateway_id            = route.value.nat_gateway_id
+      transit_gateway_id        = route.value.transit_gateway_id
+      vpc_peering_connection_id = route.value.vpc_peering_connection_id
+      network_interface_id      = route.value.network_interface_id
+    }
+  }
+
   tags = merge(var.tags, {
     Name = "${var.name}-public-rt"
   })
@@ -105,6 +117,18 @@ resource "aws_route_table" "private" {
     content {
       cidr_block     = "0.0.0.0/0"
       nat_gateway_id = aws_nat_gateway.this[0].id
+    }
+  }
+
+  dynamic "route" {
+    for_each = var.additional_private_routes
+    content {
+      cidr_block                = route.value.cidr_block
+      gateway_id                = route.value.gateway_id
+      nat_gateway_id            = route.value.nat_gateway_id
+      transit_gateway_id        = route.value.transit_gateway_id
+      vpc_peering_connection_id = route.value.vpc_peering_connection_id
+      network_interface_id      = route.value.network_interface_id
     }
   }
 

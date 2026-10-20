@@ -51,6 +51,30 @@ di-apply duluan, baru `ec2/*`/`eks` bisa jalan. `s3/*` independen (tidak butuh
 vpc), bebas kapan saja. Workflow `terraform-apply.yml` sudah menangani urutan
 ini otomatis.
 
+### Tambah route custom di VPC (VPN, VPC peering, Transit Gateway)
+
+Selain route default (public -> internet gateway, private -> NAT gateway),
+bisa tambah route lain lewat `additional_public_routes`/
+`additional_private_routes` di `envs/<environment>/vpc/variables.tf`:
+
+```hcl
+variable "additional_private_routes" {
+  default = [
+    {
+      cidr_block           = "192.168.50.0/24"   # CIDR tujuan
+      network_interface_id = "eni-xxxxxxxx"       # mis. ENI server VPN
+    },
+  ]
+}
+```
+
+Tiap elemen wajib isi `cidr_block` + **tepat satu** dari: `gateway_id`
+(Virtual Private Gateway), `nat_gateway_id`, `transit_gateway_id`,
+`vpc_peering_connection_id`, atau `network_interface_id` (mis. ENI instance
+EC2 yang jadi VPN server - lebih umum dipakai daripada `instance_id`, yang
+sejak AWS provider v5 sudah tidak didukung lagi di route table). Field lain
+dikosongkan - AWS menolak route dengan 0 atau lebih dari 1 target.
+
 ### Punya banyak instance EC2 / bucket S3 untuk tujuan berbeda-beda
 
 `s3/` dan `ec2/` di dalam tiap environment adalah **kategori**, bukan satu

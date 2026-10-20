@@ -34,3 +34,30 @@ variable "private_subnet_cidrs" {
   type    = list(string)
   default = ["10.103.10.0/24", "10.103.11.0/24", "10.103.12.0/24"]
 }
+
+# Kosong dulu (belum ada VPN/peering/Transit Gateway) - isi lewat PR kapan
+# saja. Lihat deskripsi variable yang sama di modules/vpc/variables.tf untuk
+# format tiap elemen (cidr_block + tepat satu target).
+variable "additional_public_routes" {
+  type = list(object({
+    cidr_block                = string
+    gateway_id                = optional(string)
+    nat_gateway_id            = optional(string)
+    transit_gateway_id        = optional(string)
+    vpc_peering_connection_id = optional(string)
+    network_interface_id      = optional(string)
+  }))
+  default = []
+}
+
+variable "additional_private_routes" {
+  type = list(object({
+    cidr_block                = string
+    gateway_id                = optional(string)
+    nat_gateway_id            = optional(string)
+    transit_gateway_id        = optional(string)
+    vpc_peering_connection_id = optional(string)
+    network_interface_id      = optional(string)
+  }))
+  default = []
+}
