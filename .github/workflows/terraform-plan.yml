@@ -33,6 +33,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # perlu history lengkap untuk "git diff" (deteksi stack yang berubah di PR ini)
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -64,29 +66,47 @@ jobs:
       # ditulis ke step summary (lihat tab Actions > Summary run ini), yang
       # limitnya jauh lebih besar (~1MB) - jadi tidak ada yang hilang/terpotong
       # diam-diam lagi.
-      - name: Terraform Plan per environment & stack (vpc, iam, s3/*, ec2/*, eks)
+      #
+      # Stack yang di-plan HANYA yang kena dampak perubahan di PR ini (lihat
+      # .github/scripts/affected-stacks.sh) - bukan selalu semua stack di
+      # semua environment. Kalau PR cuma ubah 1 stack, cuma 1 stack itu yang
+      # di-plan, jadi lebih cepat dan komentarnya lebih relevan untuk di-review.
+      - name: Terraform Plan per environment & stack (hanya yang kena dampak perubahan di PR ini)
         id: plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
           set +e
           overall=0
+
+          changed_file="$(mktemp)"
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$changed_file"
+          echo "File yang berubah di PR ini:"
+          cat "$changed_file"
 
           for envdir in envs/*/; do
             [ -d "$envdir" ] || continue
             env="$(basename "$envdir")"
 
-            DIRS=("envs/$env/vpc" "envs/$env/iam")
-            for category in s3 ec2; do
-              for d in "envs/$env/$category"/*/; do
-                [ -d "$d" ] || continue
-                DIRS+=("envs/$env/$category/$(basename "$d")")
-              done
-            done
-            DIRS+=("envs/$env/eks")
+            DIRS=()
+            while IFS= read -r stack; do
+              [ -z "$stack" ] && continue
+              DIRS+=("envs/$env/$stack")
+            done < <(bash .github/scripts/affected-stacks.sh "$env" "$changed_file")
 
             out="plan-output-${env}.md"
             : > "$out"
             echo "### Terraform Plan - environment \`${env}\`" >> "$out"
             echo "" >> "$out"
+
+            if [ ${#DIRS[@]} -eq 0 ]; then
+              echo "_Tidak ada perubahan pada stack Terraform manapun di environment ini untuk PR ini._" >> "$out"
+              echo "" >> "$out"
+              cat "$out" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+
             echo "| Stack | Status | Ringkasan |" >> "$out"
             echo "|---|---|---|" >> "$out"
 
@@ -133,6 +153,7 @@ jobs:
             cat "$out" >> "$GITHUB_STEP_SUMMARY"
           done
 
+          rm -f "$changed_file"
           echo "overall_failed=$overall" >> "$GITHUB_OUTPUT"
 
       # 1 komentar per environment, di-UPDATE di tempat kalau sudah ada

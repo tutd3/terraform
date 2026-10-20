@@ -61,6 +61,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # perlu history lengkap untuk "git diff" (deteksi stack yang berubah saat trigger push)
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -73,25 +75,39 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      # Scope stack mana yang di-apply, urutan prioritas:
-      #   1. Input "stacks" saat Run workflow manual (workflow_dispatch) -
-      #      paling fleksibel, langsung dari tab Actions tanpa ubah apa pun.
-      #   2. Repo variable APPLY_STACKS - default sementara untuk auto-apply
-      #      saat merge PR (push trigger), kalau mau dibatasi tanpa
-      #      trigger manual.
-      #   3. Semua stack (default kalau keduanya kosong).
+      # Scope stack mana yang di-apply, beda tergantung cara trigger-nya:
+      #
+      #   - Trigger OTOMATIS (push/merge ke main): stack yang di-apply
+      #     DIDETEKSI SENDIRI dari file apa yang berubah (lihat
+      #     .github/scripts/affected-stacks.sh) - tidak perlu lagi apply
+      #     SEMUA stack tiap merge kalau yang berubah cuma 1-2. Ini juga
+      #     menghapus kebutuhan var APPLY_STACKS yang dulu dipakai untuk
+      #     membatasi scope push (var itu pernah ketinggalan ter-set dan
+      #     bikin apply cuma jalan sebagian tanpa sadar - deteksi otomatis
+      #     ini lebih aman karena selalu mengikuti isi commit yang sebenarnya).
+      #
+      #   - Trigger MANUAL (workflow_dispatch, lewat tab Actions): tetap
+      #     pakai kontrol eksplisit seperti sebelumnya - input "stacks",
+      #     lalu repo variable APPLY_STACKS kalau input kosong, lalu SEMUA
+      #     stack kalau dua-duanya kosong. Ini sengaja TIDAK otomatis,
+      #     supaya ada cara pasti untuk force-apply semua/sebagian stack
+      #     kapan pun dibutuhkan (mis. recovery, atau re-apply tanpa ada
+      #     perubahan kode).
       #
       # "s3" dan "ec2" itu KATEGORI, bukan satu stack - bisa ada banyak
       # instance dengan tujuan beda-beda di envs/<env>/<kategori>/<nama>/
-      # (mis. s3/app, s3/loki-logs, ec2/example, ec2/psql). Tulis nama
-      # kategorinya saja untuk apply SEMUA instance di situ, atau
-      # "<kategori>/<nama>" untuk satu instance spesifik saja.
+      # (mis. s3/app, s3/loki-logs, ec2/example, ec2/psql). Untuk trigger
+      # manual, tulis nama kategorinya saja untuk apply SEMUA instance di
+      # situ, atau "<kategori>/<nama>" untuk satu instance spesifik saja.
       #
       # Urutan eksekusi SELALU vpc -> iam -> s3/* -> ec2/* -> eks, apa pun
       # urutan di input, karena eks & ec2 baca output vpc lewat
       # terraform_remote_state. iam tidak bergantung stack lain.
       - name: "Terraform Apply (urutan tetap: vpc -> iam -> s3/* -> ec2/* -> eks)"
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
           DISPATCH_STACKS: ${{ github.event.inputs.stacks }}
           DEFAULT_STACKS: ${{ vars.APPLY_STACKS }}
           ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
@@ -103,33 +119,61 @@ jobs:
             exit 1
           fi
 
-          RAW="${DISPATCH_STACKS:-${DEFAULT_STACKS:-vpc iam s3 ec2 eks}}"
-          # Normalisasi: lowercase, koma -> spasi, alias k8s -> eks
-          RAW="$(echo "$RAW" | tr '[:upper:]' '[:lower:]' | tr ',' ' ' | sed 's/k8s/eks/g')"
-          SELECTED=" $RAW "
-
           DIRS=()
 
-          case "$SELECTED" in *" vpc "*) DIRS+=("$BASE/vpc") ;; esac
-          case "$SELECTED" in *" iam "*) DIRS+=("$BASE/iam") ;; esac
+          if [ "$EVENT_NAME" = "push" ]; then
+            # git tree kosong - dipakai sebagai basis diff kalau BEFORE_SHA
+            # tidak valid (mis. push pertama ke branch baru / force-push).
+            EMPTY_TREE="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+            if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+              DIFF_BASE="$EMPTY_TREE"
+            else
+              DIFF_BASE="$BEFORE_SHA"
+            fi
 
-          # Setiap subfolder di envs/<env>/<kategori>/ adalah instance sendiri,
-          # dengan tujuan masing-masing (nama folder = nama tujuannya).
-          for category in s3 ec2; do
-            for d in "$BASE/$category"/*/; do
-              [ -d "$d" ] || continue
-              name="$(basename "$d")"
-              case "$SELECTED" in
-                *" $category "*|*" $category/$name "*) DIRS+=("$BASE/$category/$name") ;;
-              esac
+            changed_file="$(mktemp)"
+            git diff --name-only "$DIFF_BASE" "$AFTER_SHA" > "$changed_file"
+            echo "File yang berubah pada push ini:"
+            cat "$changed_file"
+
+            while IFS= read -r stack; do
+              [ -z "$stack" ] && continue
+              DIRS+=("$BASE/$stack")
+            done < <(bash .github/scripts/affected-stacks.sh "$ENVIRONMENT" "$changed_file")
+            rm -f "$changed_file"
+
+            if [ ${#DIRS[@]} -eq 0 ]; then
+              echo "Tidak ada perubahan pada stack Terraform manapun di environment '$ENVIRONMENT' - skip apply."
+              exit 0
+            fi
+          else
+            RAW="${DISPATCH_STACKS:-${DEFAULT_STACKS:-vpc iam s3 ec2 eks}}"
+            # Normalisasi: lowercase, koma -> spasi, alias k8s -> eks
+            RAW="$(echo "$RAW" | tr '[:upper:]' '[:lower:]' | tr ',' ' ' | sed 's/k8s/eks/g')"
+            SELECTED=" $RAW "
+
+            case "$SELECTED" in *" vpc "*) DIRS+=("$BASE/vpc") ;; esac
+            case "$SELECTED" in *" iam "*) DIRS+=("$BASE/iam") ;; esac
+
+            # Setiap subfolder di envs/<env>/<kategori>/ adalah instance
+            # sendiri, dengan tujuan masing-masing (nama folder = nama
+            # tujuannya).
+            for category in s3 ec2; do
+              for d in "$BASE/$category"/*/; do
+                [ -d "$d" ] || continue
+                name="$(basename "$d")"
+                case "$SELECTED" in
+                  *" $category "*|*" $category/$name "*) DIRS+=("$BASE/$category/$name") ;;
+                esac
+              done
             done
-          done
 
-          case "$SELECTED" in *" eks "*) DIRS+=("$BASE/eks") ;; esac
+            case "$SELECTED" in *" eks "*) DIRS+=("$BASE/eks") ;; esac
 
-          if [ ${#DIRS[@]} -eq 0 ]; then
-            echo "::error::Tidak ada stack valid di input '$RAW' (pilihan: vpc, iam, s3 atau s3/<nama>, ec2 atau ec2/<nama>, eks/k8s)"
-            exit 1
+            if [ ${#DIRS[@]} -eq 0 ]; then
+              echo "::error::Tidak ada stack valid di input '$RAW' (pilihan: vpc, iam, s3 atau s3/<nama>, ec2 atau ec2/<nama>, eks/k8s)"
+              exit 1
+            fi
           fi
 
           echo "Stacks yang akan di-apply (urutan terjaga): ${DIRS[*]}"
