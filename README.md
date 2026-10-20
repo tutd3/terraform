@@ -20,6 +20,7 @@ Actions dengan OIDC (tanpa access key yang disimpan sebagai secret).
 │   ├── production/        # ENVIRONMENT - sudah live, dipakai GitHub Environment "production"
 │   │   ├── vpc/            # Stack terpisah, state sendiri
 │   │   ├── iam/             # Stack terpisah, group readonly/admin + user
+│   │   │   └── users/        # Daftar user: 1 file kosong = 1 user (readonly/ atau admin/)
 │   │   ├── s3/              # KATEGORI - tiap subfolder = 1 bucket S3
 │   │   │   ├── app/
 │   │   │   └── test1-cempaka/
@@ -89,20 +90,34 @@ Tiap instance EC2 bisa diatur:
 - **`<name_prefix>-readonly`** - policy `ReadOnlyAccess` (cuma bisa lihat)
 - **`<name_prefix>-admin`** - policy `AdministratorAccess` (akses penuh)
 
-Belum ada user dibuat secara default. Untuk nambah user, edit
-`envs/<environment>/iam/variables.tf`:
+Kalau stack `eks` ada, user di group ini juga otomatis dapat akses Kubernetes
+yang setara (`AmazonEKSViewPolicy` untuk readonly, `AmazonEKSClusterAdminPolicy`
+untuk admin) - tidak perlu setting tambahan, lihat `envs/<environment>/eks/main.tf`.
 
-```hcl
-variable "readonly_users" {
-  default = ["nama-user-1", "nama-user-2"]
-}
+Untuk nambah/pindah/hapus user, **taruh/pindahkan/hapus file kosong** di:
 
-variable "admin_users" {
-  default = ["nama-admin"]
-}
+```
+envs/<environment>/iam/users/readonly/<nama-user>
+envs/<environment>/iam/users/admin/<nama-user>
 ```
 
-lalu buka PR seperti biasa. User otomatis masuk ke group yang sesuai.
+Nama file = nama IAM user, isi file tidak dipakai (boleh kosong). Misal mau
+tambah user "budi" sebagai readonly:
+
+```
+touch envs/production/iam/users/readonly/budi
+```
+
+lalu buka PR seperti biasa - user otomatis masuk ke group yang sesuai setelah
+merge & apply. Pindah tier = pindahkan file ke folder lain (AMAN, tidak
+menghapus/membuat ulang user aslinya - lihat README.md di tiap folder & komentar
+di `modules/iam/main.tf`). Hapus file = user ikut dihapus total saat PR
+berikutnya di-apply.
+
+Kalau user yang mau didaftarkan **sudah ada** di AWS (dibuat manual lewat
+Console), jangan langsung taruh file & merge - perlu `terraform import` dulu
+supaya Terraform tidak mencoba membuat user baru yang namanya bentrok (lihat
+riwayat `test1`/`test2`/`terrafrom` di repo ini sebagai contoh).
 
 **Soal password console login:** secara default user yang dibuat TIDAK dapat
 password (programmatic access only / kamu atur lewat access key secara
