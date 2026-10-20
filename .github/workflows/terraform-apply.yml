@@ -43,13 +43,10 @@ jobs:
     # AWS_REGION sendiri-sendiri (Settings > Environments), dan dipasangi
     # "required reviewers" - job ini akan BERHENTI dan menunggu approval
     # manual sebelum lanjut. Default "production" kalau tidak dipilih
-    # (push trigger biasa / merge PR).
-    #
-    # CATATAN: saat ini kode Terraform di envs/dev/ masih satu-satunya
-    # environment yang benar-benar ada. Memilih "staging" di sini baru
-    # mengganti kredensial AWS yang dipakai (begitu environment staging
-    # diisi AWS_ROLE_ARN-nya) - belum ada stack Terraform terpisah untuk
-    # staging. Itu langkah lanjutan terpisah (duplikasi envs/dev -> envs/staging).
+    # (push trigger biasa / merge PR). Nama environment ini JUGA menentukan
+    # direktori Terraform yang dipakai: envs/<environment>/ (lihat step di
+    # bawah) - jadi pilih "staging" = pakai kredensial staging DAN kode di
+    # envs/staging/.
     environment: ${{ github.event.inputs.environment || 'production' }}
 
     steps:
@@ -76,7 +73,7 @@ jobs:
       #   3. Semua stack (default kalau keduanya kosong).
       #
       # "s3" dan "ec2" itu KATEGORI, bukan satu stack - bisa ada banyak
-      # instance dengan tujuan beda-beda di envs/dev/<kategori>/<nama>/
+      # instance dengan tujuan beda-beda di envs/<env>/<kategori>/<nama>/
       # (mis. s3/app, s3/loki-logs, ec2/example, ec2/psql). Tulis nama
       # kategorinya saja untuk apply SEMUA instance di situ, atau
       # "<kategori>/<nama>" untuk satu instance spesifik saja.
@@ -87,8 +84,15 @@ jobs:
         env:
           DISPATCH_STACKS: ${{ github.event.inputs.stacks }}
           DEFAULT_STACKS: ${{ vars.APPLY_STACKS }}
+          ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
         run: |
           set -e
+          BASE="envs/$ENVIRONMENT"
+          if [ ! -d "$BASE" ]; then
+            echo "::error::Direktori '$BASE' tidak ada - belum ada kode Terraform untuk environment '$ENVIRONMENT'"
+            exit 1
+          fi
+
           RAW="${DISPATCH_STACKS:-${DEFAULT_STACKS:-vpc s3 ec2 eks}}"
           # Normalisasi: lowercase, koma -> spasi, alias k8s -> eks
           RAW="$(echo "$RAW" | tr '[:upper:]' '[:lower:]' | tr ',' ' ' | sed 's/k8s/eks/g')"
@@ -96,21 +100,21 @@ jobs:
 
           DIRS=()
 
-          case "$SELECTED" in *" vpc "*) DIRS+=("envs/dev/vpc") ;; esac
+          case "$SELECTED" in *" vpc "*) DIRS+=("$BASE/vpc") ;; esac
 
-          # Setiap subfolder di envs/dev/<kategori>/ adalah instance sendiri,
+          # Setiap subfolder di envs/<env>/<kategori>/ adalah instance sendiri,
           # dengan tujuan masing-masing (nama folder = nama tujuannya).
           for category in s3 ec2; do
-            for d in "envs/dev/$category"/*/; do
+            for d in "$BASE/$category"/*/; do
               [ -d "$d" ] || continue
               name="$(basename "$d")"
               case "$SELECTED" in
-                *" $category "*|*" $category/$name "*) DIRS+=("envs/dev/$category/$name") ;;
+                *" $category "*|*" $category/$name "*) DIRS+=("$BASE/$category/$name") ;;
               esac
             done
           done
 
-          case "$SELECTED" in *" eks "*) DIRS+=("envs/dev/eks") ;; esac
+          case "$SELECTED" in *" eks "*) DIRS+=("$BASE/eks") ;; esac
 
           if [ ${#DIRS[@]} -eq 0 ]; then
             echo "::error::Tidak ada stack valid di input '$RAW' (pilihan: vpc, s3 atau s3/<nama>, ec2 atau ec2/<nama>, eks/k8s)"
