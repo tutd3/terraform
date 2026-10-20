@@ -1,0 +1,165 @@
+name: Terraform Destroy
+
+# SENGAJA cuma workflow_dispatch - tidak ada trigger otomatis (push/PR) sama
+# sekali untuk workflow ini. Destroy cuma boleh terjadi kalau ada manusia yang
+# sadar membuka tab Actions dan menjalankannya sendiri.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: >-
+          GitHub Environment yang mau dihancurkan stack-nya (menentukan
+          kredensial OIDC + approval gate, sama seperti Terraform Apply).
+          HATI-HATI: default sengaja "staging" (BUKAN "production") supaya
+          tidak ada salah pilih yang berakibat fatal.
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - production
+      stacks:
+        description: >-
+          WAJIB diisi - stack yang mau DIHANCURKAN, pisah spasi/koma: vpc,
+          iam, eks (atau k8s), s3 (semua bucket) / s3/<nama> (satu bucket),
+          ec2 (semua instance) / ec2/<nama> (satu instance). Tulis "all"
+          untuk hancurkan SEMUA stack di environment ini. Beda dari Apply,
+          TIDAK ADA default "kosongkan untuk semua" - harus eksplisit.
+        required: true
+        type: string
+      confirm:
+        description: >-
+          WAJIB: ketik persis "destroy <environment>" (mis. "destroy staging")
+          sesuai environment yang dipilih di atas. Kalau tidak cocok persis,
+          workflow akan GAGAL sebelum menyentuh apa pun.
+        required: true
+        type: string
+
+# Grup concurrency SAMA PERSIS dengan Terraform Apply (bukan grup terpisah) -
+# supaya apply dan destroy untuk environment yang sama TIDAK PERNAH jalan
+# bersamaan (antre rapi, bukan rebutan state lock / race condition).
+concurrency:
+  group: terraform-apply-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # dibutuhkan untuk assume role AWS via OIDC
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  destroy:
+    name: "Destroy (${{ github.event.inputs.environment }})"
+    runs-on: ubuntu-latest
+    # Sama seperti Apply: GitHub Environment ini bisa dipasangi "required
+    # reviewers" di Settings > Environments - job akan BERHENTI menunggu
+    # approval manual sebelum step apa pun (termasuk validasi konfirmasi di
+    # bawah) sempat jalan.
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      # Divalidasi PALING AWAL, sebelum checkout/credential apa pun - supaya
+      # kalau konfirmasi salah ketik, workflow berhenti total tanpa sempat
+      # assume role AWS atau sentuh apa pun.
+      - name: Validasi teks konfirmasi
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          expected="destroy $(echo "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')"
+          got="$(echo "$CONFIRM" | tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          if [ "$got" != "$expected" ]; then
+            echo "::error::Teks konfirmasi tidak cocok. Harus ketik persis: \"$expected\""
+            exit 1
+          fi
+          echo "Konfirmasi cocok - lanjut proses destroy environment '$ENVIRONMENT'."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Urutan destroy SELALU KEBALIKAN dari apply: eks -> ec2/* -> s3/* ->
+      # iam -> vpc. Ini WAJIB, bukan sekadar rapi - stack eks & ec2 baca
+      # output vpc (dan eks baca output iam) lewat terraform_remote_state,
+      # jadi vpc & iam harus dihancurkan PALING TERAKHIR, setelah semua yang
+      # bergantung padanya sudah tidak ada. Kalau vpc dihancurkan duluan,
+      # destroy eks/ec2 bisa gagal atau salah hitung dependency.
+      - name: "Terraform Destroy (urutan tetap: eks -> ec2/* -> s3/* -> iam -> vpc)"
+        env:
+          STACKS: ${{ github.event.inputs.stacks }}
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          set -e
+          BASE="envs/$ENVIRONMENT"
+          if [ ! -d "$BASE" ]; then
+            echo "::error::Direktori '$BASE' tidak ada - belum ada kode Terraform untuk environment '$ENVIRONMENT'"
+            exit 1
+          fi
+
+          # Normalisasi: lowercase, koma -> spasi, alias k8s -> eks, "all" ->
+          # semua stack.
+          RAW="$(echo "$STACKS" | tr '[:upper:]' '[:lower:]' | tr ',' ' ' | sed 's/k8s/eks/g')"
+          SELECTED=" $RAW "
+          case "$SELECTED" in *" all "*) SELECTED=" vpc iam s3 ec2 eks " ;; esac
+
+          DIRS=()
+
+          case "$SELECTED" in *" eks "*) DIRS+=("$BASE/eks") ;; esac
+
+          # ec2 sebelum s3 (kebalikan urutan apply: s3 sebelum ec2) - dua-duanya
+          # tidak saling bergantung jadi urutan di antara keduanya bebas,
+          # tapi tetap konsisten "kebalikan apply" biar gampang diingat.
+          for category in ec2 s3; do
+            for d in "$BASE/$category"/*/; do
+              [ -d "$d" ] || continue
+              name="$(basename "$d")"
+              case "$SELECTED" in
+                *" $category "*|*" $category/$name "*) DIRS+=("$BASE/$category/$name") ;;
+              esac
+            done
+          done
+
+          case "$SELECTED" in *" iam "*) DIRS+=("$BASE/iam") ;; esac
+          case "$SELECTED" in *" vpc "*) DIRS+=("$BASE/vpc") ;; esac
+
+          if [ ${#DIRS[@]} -eq 0 ]; then
+            echo "::error::Tidak ada stack valid di input '$STACKS' (pilihan: vpc, iam, s3 atau s3/<nama>, ec2 atau ec2/<nama>, eks/k8s, atau 'all')"
+            exit 1
+          fi
+
+          echo "::warning::Stack yang akan DIHANCURKAN di environment '$ENVIRONMENT' (urutan tetap): ${DIRS[*]}"
+          case " ${DIRS[*]} " in
+            *" $BASE/iam "*) echo "::warning::Stack 'iam' termasuk - ini MENGHAPUS IAM USER ASLI (test1/test2/terrafrom dkk), bukan cuma akses Kubernetes-nya." ;;
+          esac
+          case " ${DIRS[*]} " in
+            *" $BASE/eks "*) echo "::warning::Stack 'eks' termasuk - ini MENGHAPUS SELURUH CLUSTER KUBERNETES beserta semua workload di dalamnya." ;;
+          esac
+
+          # Preview dulu SEMUA stack (terraform plan -destroy) sebelum ada
+          # satu pun yang benar-benar dihancurkan - supaya ada jejak di log
+          # persis resource apa saja yang akan hilang.
+          for dir in "${DIRS[@]}"; do
+            echo "::group::Plan destroy (preview): $dir"
+            terraform -chdir="$dir" init -input=false
+            terraform -chdir="$dir" plan -destroy -no-color -input=false
+            echo "::endgroup::"
+          done
+
+          for dir in "${DIRS[@]}"; do
+            echo "::group::Destroy: $dir"
+            terraform -chdir="$dir" destroy -auto-approve -input=false
+            echo "::endgroup::"
+          done
