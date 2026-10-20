@@ -240,3 +240,53 @@ resource "aws_eks_access_policy_association" "viewer" {
 
   depends_on = [aws_eks_access_entry.viewer]
 }
+
+# --- Rule tambahan di security group cluster (auto-dibuat & dipakai bareng
+#     oleh control plane + semua worker node) ---
+locals {
+  cluster_sg_id = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+}
+
+# Semua TCP antar-resource di dalam VPC yang sama (mis. VPN server yang akan
+# dibuat di VPC ini, service lain yang perlu akses node/pod langsung).
+resource "aws_vpc_security_group_ingress_rule" "intra_vpc_tcp" {
+  security_group_id = local.cluster_sg_id
+  description       = "Semua TCP dari dalam VPC (${var.vpc_cidr})"
+  ip_protocol       = "tcp"
+  from_port         = 0
+  to_port           = 65535
+  cidr_ipv4         = var.vpc_cidr
+}
+
+# ICMP type 3 code 4 (Fragmentation Needed) - wajib untuk Path MTU Discovery,
+# bukan celah keamanan (cuma pesan error "paket kebesaran", bukan jalur masuk).
+resource "aws_vpc_security_group_ingress_rule" "icmp_frag_needed" {
+  security_group_id = local.cluster_sg_id
+  description       = "ICMP type 3 code 4 (Fragmentation Needed / Path MTU Discovery)"
+  ip_protocol       = "icmp"
+  from_port         = 3
+  to_port           = 4
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
+# Port 80/443 publik - dibutuhkan kalau ada NLB/ingress controller yang
+# terusin traffic internet langsung ke node (pola: NLB -> NodePort/hostNetwork).
+resource "aws_vpc_security_group_ingress_rule" "http_public" {
+  count             = var.node_sg_allow_web_public ? 1 : 0
+  security_group_id = local.cluster_sg_id
+  description       = "HTTP publik (traffic dari NLB/ingress controller)"
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "https_public" {
+  count             = var.node_sg_allow_web_public ? 1 : 0
+  security_group_id = local.cluster_sg_id
+  description       = "HTTPS publik (traffic dari NLB/ingress controller)"
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  cidr_ipv4         = "0.0.0.0/0"
+}

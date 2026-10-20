@@ -9,6 +9,7 @@ module "eks" {
   )
   node_instance_types = var.node_instance_types
   small_instance_mode = true # t3.micro - lihat catatan di modules/eks/variables.tf
+  vpc_cidr            = data.terraform_remote_state.vpc.outputs.vpc_cidr
   admin_principal_arns = concat(
     var.admin_principal_arns, # mis. root user, lihat variables.tf
     values(data.terraform_remote_state.iam.outputs.admin_user_arns),
