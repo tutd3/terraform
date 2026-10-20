@@ -51,6 +51,12 @@ variable "admin_principal_arns" {
   default     = []
 }
 
+variable "viewer_principal_arns" {
+  description = "Daftar IAM principal ARN yang diberi akses VIEW-ONLY ke Kubernetes API cluster ini lewat EKS Access Entry (AmazonEKSViewPolicy) - cocok untuk IAM user di group readonly. Principal yang sudah ada di admin_principal_arns otomatis di-skip di sini (tidak bisa dobel access entry)."
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

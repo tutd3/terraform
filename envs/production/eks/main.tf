@@ -7,9 +7,10 @@ module "eks" {
     data.terraform_remote_state.vpc.outputs.public_subnet_ids,
     data.terraform_remote_state.vpc.outputs.private_subnet_ids,
   )
-  node_instance_types  = var.node_instance_types
-  small_instance_mode  = true # t3.micro - lihat catatan di modules/eks/variables.tf
-  admin_principal_arns = var.admin_principal_arns
+  node_instance_types   = var.node_instance_types
+  small_instance_mode   = true # t3.micro - lihat catatan di modules/eks/variables.tf
+  admin_principal_arns  = var.admin_principal_arns
+  viewer_principal_arns = values(data.terraform_remote_state.iam.outputs.readonly_user_arns)
 
   tags = {
     Environment = "production"

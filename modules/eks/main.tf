@@ -218,3 +218,25 @@ resource "aws_eks_access_policy_association" "admin" {
 
   depends_on = [aws_eks_access_entry.admin]
 }
+
+# AWS cuma izinkan 1 access entry per principal per cluster, jadi principal
+# yang sudah ada di admin_principal_arns otomatis di-exclude dari sini
+# (hindari error "ResourceInUseException: already exists").
+resource "aws_eks_access_entry" "viewer" {
+  for_each      = setsubtract(toset(var.viewer_principal_arns), toset(var.admin_principal_arns))
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.value
+}
+
+resource "aws_eks_access_policy_association" "viewer" {
+  for_each      = setsubtract(toset(var.viewer_principal_arns), toset(var.admin_principal_arns))
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.value
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.viewer]
+}
