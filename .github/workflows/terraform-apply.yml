@@ -11,7 +11,7 @@ on:
     inputs:
       stacks:
         description: >-
-          Stack yang mau di-apply, pisah spasi/koma: vpc, eks (atau k8s),
+          Stack yang mau di-apply, pisah spasi/koma: vpc, iam, eks (atau k8s),
           s3 (semua bucket) / s3/<nama> (satu bucket, mis. "s3/loki-logs"),
           ec2 (semua instance) / ec2/<nama> (satu instance, mis. "ec2/psql").
           Kosongkan untuk apply semua.
@@ -78,9 +78,10 @@ jobs:
       # kategorinya saja untuk apply SEMUA instance di situ, atau
       # "<kategori>/<nama>" untuk satu instance spesifik saja.
       #
-      # Urutan eksekusi SELALU vpc -> s3/* -> ec2/* -> eks, apa pun urutan di
-      # input, karena eks & ec2 baca output vpc lewat terraform_remote_state.
-      - name: "Terraform Apply (urutan tetap: vpc -> s3/* -> ec2/* -> eks)"
+      # Urutan eksekusi SELALU vpc -> iam -> s3/* -> ec2/* -> eks, apa pun
+      # urutan di input, karena eks & ec2 baca output vpc lewat
+      # terraform_remote_state. iam tidak bergantung stack lain.
+      - name: "Terraform Apply (urutan tetap: vpc -> iam -> s3/* -> ec2/* -> eks)"
         env:
           DISPATCH_STACKS: ${{ github.event.inputs.stacks }}
           DEFAULT_STACKS: ${{ vars.APPLY_STACKS }}
@@ -93,7 +94,7 @@ jobs:
             exit 1
           fi
 
-          RAW="${DISPATCH_STACKS:-${DEFAULT_STACKS:-vpc s3 ec2 eks}}"
+          RAW="${DISPATCH_STACKS:-${DEFAULT_STACKS:-vpc iam s3 ec2 eks}}"
           # Normalisasi: lowercase, koma -> spasi, alias k8s -> eks
           RAW="$(echo "$RAW" | tr '[:upper:]' '[:lower:]' | tr ',' ' ' | sed 's/k8s/eks/g')"
           SELECTED=" $RAW "
@@ -101,6 +102,7 @@ jobs:
           DIRS=()
 
           case "$SELECTED" in *" vpc "*) DIRS+=("$BASE/vpc") ;; esac
+          case "$SELECTED" in *" iam "*) DIRS+=("$BASE/iam") ;; esac
 
           # Setiap subfolder di envs/<env>/<kategori>/ adalah instance sendiri,
           # dengan tujuan masing-masing (nama folder = nama tujuannya).
@@ -117,7 +119,7 @@ jobs:
           case "$SELECTED" in *" eks "*) DIRS+=("$BASE/eks") ;; esac
 
           if [ ${#DIRS[@]} -eq 0 ]; then
-            echo "::error::Tidak ada stack valid di input '$RAW' (pilihan: vpc, s3 atau s3/<nama>, ec2 atau ec2/<nama>, eks/k8s)"
+            echo "::error::Tidak ada stack valid di input '$RAW' (pilihan: vpc, iam, s3 atau s3/<nama>, ec2 atau ec2/<nama>, eks/k8s)"
             exit 1
           fi
 
