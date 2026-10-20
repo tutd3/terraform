@@ -11,13 +11,13 @@ variable "name_prefix" {
 variable "readonly_users" {
   description = "Daftar nama IAM user readonly. Kosongkan dulu, isi kapan saja lewat PR."
   type        = list(string)
-  default     = []
+  default     = ["test1"]
 }
 
 variable "admin_users" {
   description = "Daftar nama IAM user admin. Kosongkan dulu, isi kapan saja lewat PR."
   type        = list(string)
-  default     = []
+  default     = ["test2"]
 }
 
 variable "console_login_pgp_key" {

@@ -40,3 +40,15 @@ data "terraform_remote_state" "vpc" {
     region = "ap-southeast-3"
   }
 }
+
+# Baca output dari stack iam/ (daftar user readonly -> dikasih akses view ke
+# Kubernetes API, lihat main.tf)
+data "terraform_remote_state" "iam" {
+  backend = "s3"
+
+  config = {
+    bucket = "tutd3-terraform-state-094983223261"
+    key    = "envs/production/iam/terraform.tfstate"
+    region = "ap-southeast-3"
+  }
+}
