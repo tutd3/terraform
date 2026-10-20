@@ -24,30 +24,30 @@ resource "aws_iam_group_policy_attachment" "admin" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# --- User readonly ---
-resource "aws_iam_user" "readonly" {
-  for_each = toset(var.readonly_users)
-  name     = each.value
+# SENGAJA 1 resource gabungan per user (bukan resource terpisah readonly/
+# admin) - supaya pindah tier itu jadi UPDATE "groups" di resource yang SAMA,
+# bukan destroy aws_iam_user di satu resource + create di resource lain.
+# Kalau dipisah, pindah tier akan menghapus & membuat ulang USER IAM ASLI
+# (hilang access key/password console-nya) - pernah kejadian pola yang sama
+# di modul eks (access entry), di sini dampaknya lebih parah karena yang
+# kehapus bukan cuma mapping akses, tapi user-nya sendiri.
+locals {
+  user_group_by_name = merge(
+    { for name in var.readonly_users : name => "readonly" },
+    { for name in var.admin_users : name => "admin" },
+  )
+}
+
+resource "aws_iam_user" "this" {
+  for_each = local.user_group_by_name
+  name     = each.key
   tags     = var.tags
 }
 
-resource "aws_iam_user_group_membership" "readonly" {
-  for_each = toset(var.readonly_users)
-  user     = aws_iam_user.readonly[each.value].name
-  groups   = [aws_iam_group.readonly.name]
-}
-
-# --- User admin ---
-resource "aws_iam_user" "admin" {
-  for_each = toset(var.admin_users)
-  name     = each.value
-  tags     = var.tags
-}
-
-resource "aws_iam_user_group_membership" "admin" {
-  for_each = toset(var.admin_users)
-  user     = aws_iam_user.admin[each.value].name
-  groups   = [aws_iam_group.admin.name]
+resource "aws_iam_user_group_membership" "this" {
+  for_each = local.user_group_by_name
+  user     = aws_iam_user.this[each.key].name
+  groups   = [each.value == "admin" ? aws_iam_group.admin.name : aws_iam_group.readonly.name]
 }
 
 # --- Opsional: console login password untuk user baru ---
@@ -56,16 +56,9 @@ resource "aws_iam_user_group_membership" "admin" {
 # password tidak pernah tersimpan plaintext di state atau kelihatan di plan
 # output. Output-nya cuma blob terenkripsi, didekripsi oleh pemilik private
 # key (bukan oleh siapa pun yang menjalankan Terraform/CI).
-resource "aws_iam_user_login_profile" "readonly" {
-  for_each                = var.console_login_pgp_key != null ? toset(var.readonly_users) : []
-  user                    = aws_iam_user.readonly[each.value].name
-  pgp_key                 = var.console_login_pgp_key
-  password_reset_required = true
-}
-
-resource "aws_iam_user_login_profile" "admin" {
-  for_each                = var.console_login_pgp_key != null ? toset(var.admin_users) : []
-  user                    = aws_iam_user.admin[each.value].name
+resource "aws_iam_user_login_profile" "this" {
+  for_each                = var.console_login_pgp_key != null ? local.user_group_by_name : {}
+  user                    = aws_iam_user.this[each.key].name
   pgp_key                 = var.console_login_pgp_key
   password_reset_required = true
 }
