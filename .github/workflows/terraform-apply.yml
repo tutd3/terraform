@@ -28,6 +28,15 @@ on:
           - production
           - staging
 
+# Serialize apply PER ENVIRONMENT - kalau ada 2 run nyangkut ke environment
+# yang sama (mis. 2 PR di-merge berdekatan), yang kedua ANTRI nunggu yang
+# pertama selesai (bukan dibatalkan - "cancel-in-progress: false" sengaja,
+# supaya apply yang sudah jalan tidak terputus di tengah). production dan
+# staging tetap bisa jalan bersamaan karena state-nya terpisah total.
+concurrency:
+  group: terraform-apply-${{ github.event.inputs.environment || 'production' }}
+  cancel-in-progress: false
+
 permissions:
   id-token: write # dibutuhkan untuk assume role AWS via OIDC
   contents: read
