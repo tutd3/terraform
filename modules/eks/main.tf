@@ -200,45 +200,39 @@ resource "aws_eks_addon" "kube_proxy" {
 
 # --- Akses Kubernetes API untuk principal lain (selain role CI yang bikin
 #     cluster, yang otomatis dapat akses admin) ---
-resource "aws_eks_access_entry" "admin" {
-  for_each      = toset(var.admin_principal_arns)
-  cluster_name  = aws_eks_cluster.this.name
-  principal_arn = each.value
+#
+# SENGAJA 1 resource gabungan (bukan 2 resource terpisah admin/viewer) -
+# supaya pindah tier (mis. readonly -> admin) itu jadi UPDATE policy_arn di
+# resource yang SAMA, bukan destroy di satu resource + create di resource
+# lain. Kalau dipisah, Terraform bisa menjalankan create (tier baru) sebelum
+# destroy (tier lama) benar-benar selesai di sisi AWS, kena
+# "ResourceInUseException: already in use" (pernah kejadian).
+locals {
+  # admin menang kalau 1 ARN ada di dua-duanya (seharusnya tidak terjadi,
+  # tapi ini jaga-jaga).
+  eks_access_policy_by_principal = merge(
+    { for arn in var.viewer_principal_arns : arn => "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy" },
+    { for arn in var.admin_principal_arns : arn => "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy" },
+  )
 }
 
-resource "aws_eks_access_policy_association" "admin" {
-  for_each      = toset(var.admin_principal_arns)
+resource "aws_eks_access_entry" "this" {
+  for_each      = local.eks_access_policy_by_principal
   cluster_name  = aws_eks_cluster.this.name
-  principal_arn = each.value
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  principal_arn = each.key
+}
+
+resource "aws_eks_access_policy_association" "this" {
+  for_each      = local.eks_access_policy_by_principal
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.key
+  policy_arn    = each.value
 
   access_scope {
     type = "cluster"
   }
 
-  depends_on = [aws_eks_access_entry.admin]
-}
-
-# AWS cuma izinkan 1 access entry per principal per cluster, jadi principal
-# yang sudah ada di admin_principal_arns otomatis di-exclude dari sini
-# (hindari error "ResourceInUseException: already exists").
-resource "aws_eks_access_entry" "viewer" {
-  for_each      = setsubtract(toset(var.viewer_principal_arns), toset(var.admin_principal_arns))
-  cluster_name  = aws_eks_cluster.this.name
-  principal_arn = each.value
-}
-
-resource "aws_eks_access_policy_association" "viewer" {
-  for_each      = setsubtract(toset(var.viewer_principal_arns), toset(var.admin_principal_arns))
-  cluster_name  = aws_eks_cluster.this.name
-  principal_arn = each.value
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"
-
-  access_scope {
-    type = "cluster"
-  }
-
-  depends_on = [aws_eks_access_entry.viewer]
+  depends_on = [aws_eks_access_entry.this]
 }
 
 # --- Rule tambahan di security group cluster (auto-dibuat & dipakai bareng
