@@ -8,6 +8,12 @@ on:
       - "modules/**"
       - ".github/workflows/terraform-*.yml"
 
+# Kalau ada push baru ke PR yang sama sebelum run lama selesai, batalkan yang
+# lama - tidak perlu plan ganda untuk commit yang sudah usang.
+concurrency:
+  group: terraform-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   id-token: write # dibutuhkan untuk assume role AWS via OIDC
   contents: read
@@ -52,28 +58,23 @@ jobs:
           soft_fail: true # jangan gagalkan build dulu, sekadar laporan
           github_token: ${{ secrets.GITHUB_TOKEN }} # kurangi risiko kena rate limit
 
+      # Output ditulis PER ENVIRONMENT (bukan 1 file gabungan semua environment)
+      # supaya tidak kena limit 65.000 karakter komentar PR GitHub - setiap
+      # environment dapat komentarnya sendiri. Detail lengkap SEMUA stack juga
+      # ditulis ke step summary (lihat tab Actions > Summary run ini), yang
+      # limitnya jauh lebih besar (~1MB) - jadi tidak ada yang hilang/terpotong
+      # diam-diam lagi.
       - name: Terraform Plan per environment & stack (vpc, iam, s3/*, ec2/*, eks)
         id: plan
         run: |
           set +e
-          : > plan-output.md
           overall=0
 
-          # Tiap folder langsung di bawah envs/ adalah satu environment
-          # (mis. production, staging). Di dalamnya: vpc & eks itu stack
-          # tunggal, s3 & ec2 itu KATEGORI - tiap subfolder adalah instance
-          # sendiri (nama folder = tujuan).
-          #
-          # Catatan: plan ini pakai SATU kredensial AWS (repo variable) untuk
-          # semua environment - cukup untuk sekarang karena masih 1 akun AWS.
-          # Kalau nanti staging punya akun AWS terpisah, plan utuh per-environment
-          # perlu kredensial masing-masing juga (bukan cuma apply).
-          DIRS=()
           for envdir in envs/*/; do
             [ -d "$envdir" ] || continue
             env="$(basename "$envdir")"
-            DIRS+=("envs/$env/vpc")
-            DIRS+=("envs/$env/iam")
+
+            DIRS=("envs/$env/vpc" "envs/$env/iam")
             for category in s3 ec2; do
               for d in "envs/$env/$category"/*/; do
                 [ -d "$d" ] || continue
@@ -81,45 +82,103 @@ jobs:
               done
             done
             DIRS+=("envs/$env/eks")
+
+            out="plan-output-${env}.md"
+            : > "$out"
+            echo "### Terraform Plan - environment \`${env}\`" >> "$out"
+            echo "" >> "$out"
+            echo "| Stack | Status | Ringkasan |" >> "$out"
+            echo "|---|---|---|" >> "$out"
+
+            details_file="$(mktemp)"
+            for dir in "${DIRS[@]}"; do
+              label="${dir#envs/*/}"
+              tmp="$(mktemp)"
+
+              terraform -chdir="$dir" init -input=false -reconfigure > "$tmp" 2>&1
+              terraform -chdir="$dir" validate >> "$tmp" 2>&1
+              terraform -chdir="$dir" plan -no-color -input=false >> "$tmp" 2>&1
+              rc=$?
+
+              if [ $rc -eq 0 ]; then
+                stack_status="✅ OK"
+                summary_line="$(grep -E '^(Plan:|No changes\.)' "$tmp" | tail -1)"
+              else
+                stack_status="❌ Gagal (exit $rc)"
+                summary_line="lihat detail di bawah"
+                echo "::warning::Plan gagal untuk stack '$env/$label' (exit $rc). Kalau ini stack eks/ec2 dan vpc belum pernah di-apply, ini wajar."
+                overall=1
+              fi
+
+              echo "| \`$label\` | $stack_status | $summary_line |" >> "$out"
+
+              {
+                echo ""
+                echo "#### \`$label\`"
+                echo "<details><summary>Show plan</summary>"
+                echo ""
+                echo '```terraform'
+                cat "$tmp"
+                echo '```'
+                echo "</details>"
+              } >> "$details_file"
+              rm -f "$tmp"
+            done
+
+            echo "" >> "$out"
+            cat "$details_file" >> "$out"
+            rm -f "$details_file"
+
+            # Salinan lengkap semua environment, tidak kena limit komentar PR.
+            cat "$out" >> "$GITHUB_STEP_SUMMARY"
           done
 
-          for dir in "${DIRS[@]}"; do
-            label="${dir#envs/}"
-            {
-              echo "#### Stack: \`$label\`"
-              echo '<details><summary>Show plan</summary>'
-              echo
-              echo '```terraform'
-            } >> plan-output.md
-
-            terraform -chdir="$dir" init -input=false -reconfigure >> plan-output.md 2>&1
-            terraform -chdir="$dir" validate >> plan-output.md 2>&1
-            terraform -chdir="$dir" plan -no-color -input=false >> plan-output.md 2>&1
-            rc=$?
-
-            {
-              echo '```'
-              echo '</details>'
-              echo
-            } >> plan-output.md
-
-            if [ $rc -ne 0 ]; then
-              echo "::warning::Plan gagal untuk stack '$label' (exit $rc). Kalau ini stack eks/ec2 dan vpc belum pernah di-apply, ini wajar."
-              overall=1
-            fi
-          done
           echo "overall_failed=$overall" >> "$GITHUB_OUTPUT"
 
-      - name: Comment plan result on PR
+      # 1 komentar per environment, di-UPDATE di tempat kalau sudah ada
+      # (ditandai komentar HTML tersembunyi) - supaya push berulang ke PR yang
+      # sama tidak numpuk komentar baru terus-menerus.
+      - name: Comment plan result on PR (1 per environment, update in place)
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs')
-            const plan = fs.readFileSync('plan-output.md', 'utf8')
-            const body = `### Terraform Plan (per stack)\n\n${plan.slice(0, 65000)}`
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body,
-            })
+            const files = fs.readdirSync('.').filter(f => /^plan-output-.*\.md$/.test(f))
+
+            for (const file of files) {
+              const env = file.replace(/^plan-output-/, '').replace(/\.md$/, '')
+              const marker = `<!-- terraform-plan-bot: ${env} -->`
+              let content = fs.readFileSync(file, 'utf8')
+
+              // Batas aman per komentar PR (GitHub max ~65536 char/comment).
+              const LIMIT = 60000
+              if (content.length > LIMIT) {
+                content = content.slice(0, LIMIT) + `\n\n> ⚠️ Dipotong karena kepanjangan - lihat detail lengkap di step summary run ini: ${context.payload.pull_request.html_url}/checks`
+              }
+
+              const body = `${marker}\n${content}`
+
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                per_page: 100,
+              })
+              const existing = comments.data.find(c => c.body && c.body.includes(marker))
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body,
+                })
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body,
+                })
+              }
+            }
