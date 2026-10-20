@@ -7,6 +7,14 @@ on:
       - "envs/**"
       - "modules/**"
       - ".github/workflows/terraform-*.yml"
+  workflow_dispatch:
+    inputs:
+      stacks:
+        description: >-
+          Stack yang mau di-apply, pisah spasi/koma (vpc, s3, ec2, eks/k8s).
+          Kosongkan untuk apply semua stack (urutan tetap dijaga otomatis).
+        required: false
+        type: string
 
 permissions:
   id-token: write # dibutuhkan untuk assume role AWS via OIDC
@@ -39,19 +47,40 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      # Urutan wajib: vpc dulu (eks & ec2 baca output-nya lewat
-      # terraform_remote_state), s3 independen jadi bebas kapan saja.
+      # Scope stack mana yang di-apply, urutan prioritas:
+      #   1. Input "stacks" saat Run workflow manual (workflow_dispatch) -
+      #      paling fleksibel, langsung dari tab Actions tanpa ubah apa pun.
+      #   2. Repo variable APPLY_STACKS - default sementara untuk auto-apply
+      #      saat merge PR (push trigger), kalau mau dibatasi tanpa
+      #      trigger manual.
+      #   3. Semua stack (default kalau keduanya kosong).
       #
-      # Scope bisa dibatasi lewat repo variable APPLY_STACKS (mis. "vpc" saja,
-      # atau "vpc s3"). Kosongkan/hapus variable itu untuk apply semua stack
-      # seperti biasa (default).
-      - name: Terraform Apply (vpc -> s3 -> ec2 -> eks)
+      # Urutan eksekusi SELALU vpc -> s3 -> ec2 -> eks, apa pun urutan di
+      # input, karena eks & ec2 baca output vpc lewat terraform_remote_state.
+      - name: "Terraform Apply (urutan tetap: vpc -> s3 -> ec2 -> eks)"
         env:
-          APPLY_STACKS: ${{ vars.APPLY_STACKS }}
+          DISPATCH_STACKS: ${{ github.event.inputs.stacks }}
+          DEFAULT_STACKS: ${{ vars.APPLY_STACKS }}
         run: |
           set -e
-          STACKS="${APPLY_STACKS:-vpc s3 ec2 eks}"
-          echo "Stacks yang akan di-apply: $STACKS"
+          RAW="${DISPATCH_STACKS:-${DEFAULT_STACKS:-vpc s3 ec2 eks}}"
+          # Normalisasi: lowercase, koma -> spasi, alias k8s -> eks
+          RAW="$(echo "$RAW" | tr '[:upper:]' '[:lower:]' | tr ',' ' ' | sed 's/k8s/eks/g')"
+
+          SELECTED=" $RAW "
+          STACKS=""
+          for stack in vpc s3 ec2 eks; do
+            case "$SELECTED" in
+              *" $stack "*) STACKS="$STACKS $stack" ;;
+            esac
+          done
+
+          if [ -z "$STACKS" ]; then
+            echo "::error::Tidak ada stack valid di input '$RAW' (pilihan: vpc, s3, ec2, eks/k8s)"
+            exit 1
+          fi
+
+          echo "Stacks yang akan di-apply (urutan terjaga): $STACKS"
           for stack in $STACKS; do
             echo "::group::Apply stack: $stack"
             terraform -chdir="envs/dev/$stack" init -input=false
