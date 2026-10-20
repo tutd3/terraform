@@ -161,6 +161,17 @@ resource "aws_iam_policy" "github_actions_terraform" {
         Effect   = "Allow"
         Action   = "iam:*"
         Resource = "*"
+      },
+      {
+        # Dibutuhkan modules/ec2 untuk baca AMI Amazon Linux terbaru lewat
+        # SSM Parameter resmi AWS (/aws/service/ami-amazon-linux-latest/...)
+        # - dibatasi ke namespace publik "aws/service/*" milik AWS sendiri
+        # (bukan parameter privat di akun ini), jadi tidak buka akses baca ke
+        # SecureString/parameter rahasia apa pun yang mungkin disimpan nanti.
+        Sid      = "SSMPublicParametersReadOnly"
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter", "ssm:GetParameters"]
+        Resource = "arn:aws:ssm:*::parameter/aws/service/*"
       }
     ]
   })

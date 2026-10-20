@@ -1,12 +1,14 @@
-data "aws_ami" "amazon_linux" {
-  count       = var.ami_id == null ? 1 : 0
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-x86_64"]
-  }
+# Pakai SSM Parameter resmi dari AWS, BUKAN data "aws_ami" dengan filter nama
+# - filter nama "al2023-ami-*-x86_64" pernah kena bug nyata: wildcard-nya
+# kebetulan juga cocok ke varian "al2023-ami-MINIMAL-...-x86_64" (image yang
+# sengaja tidak menyertakan SSM Agent, dkk, untuk memperkecil ukuran), dan
+# most_recent = true kadang memilih varian minimal itu - instance jadi tidak
+# pernah bisa diakses lewat SSM Session Manager meskipun IAM role-nya benar.
+# SSM Parameter ini dijamin AWS selalu mengarah ke AMI "default" (bukan
+# minimal) yang sudah pre-install SSM Agent.
+data "aws_ssm_parameter" "amazon_linux" {
+  count = var.ami_id == null ? 1 : 0
+  name  = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
 resource "aws_security_group" "this" {
@@ -80,7 +82,7 @@ resource "aws_iam_instance_profile" "ssm" {
 }
 
 resource "aws_instance" "this" {
-  ami                    = coalesce(var.ami_id, try(data.aws_ami.amazon_linux[0].id, null))
+  ami                    = coalesce(var.ami_id, try(data.aws_ssm_parameter.amazon_linux[0].value, null))
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   key_name               = var.key_name
