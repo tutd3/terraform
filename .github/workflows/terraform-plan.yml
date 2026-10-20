@@ -44,27 +44,44 @@ jobs:
 
       - name: Security scan (tfsec)
         uses: aquasecurity/tfsec-action@v1.0.3
+        continue-on-error: true # action ini kadang gagal karena GitHub API rate limit
+        # saat fetch versi terbaru, bukan cuma karena temuan security - jangan
+        # sampai itu ikut nge-block Terraform Plan di bawah.
         with:
           working_directory: .
           soft_fail: true # jangan gagalkan build dulu, sekadar laporan
+          github_token: ${{ secrets.GITHUB_TOKEN }} # kurangi risiko kena rate limit
 
-      - name: Terraform Plan per stack (vpc, s3, ec2, eks)
+      - name: Terraform Plan per stack (vpc, s3/*, ec2/*, eks)
         id: plan
         run: |
           set +e
           : > plan-output.md
           overall=0
-          for stack in vpc s3 ec2 eks; do
+
+          # vpc, eks itu stack tunggal. s3 & ec2 itu KATEGORI - tiap subfolder
+          # di envs/dev/<kategori>/ adalah instance sendiri (nama folder = tujuan).
+          DIRS=("envs/dev/vpc")
+          for category in s3 ec2; do
+            for d in "envs/dev/$category"/*/; do
+              [ -d "$d" ] || continue
+              DIRS+=("envs/dev/$category/$(basename "$d")")
+            done
+          done
+          DIRS+=("envs/dev/eks")
+
+          for dir in "${DIRS[@]}"; do
+            label="${dir#envs/dev/}"
             {
-              echo "#### Stack: \`$stack\`"
+              echo "#### Stack: \`$label\`"
               echo '<details><summary>Show plan</summary>'
               echo
               echo '```terraform'
             } >> plan-output.md
 
-            terraform -chdir="envs/dev/$stack" init -input=false -reconfigure >> plan-output.md 2>&1
-            terraform -chdir="envs/dev/$stack" validate >> plan-output.md 2>&1
-            terraform -chdir="envs/dev/$stack" plan -no-color -input=false >> plan-output.md 2>&1
+            terraform -chdir="$dir" init -input=false -reconfigure >> plan-output.md 2>&1
+            terraform -chdir="$dir" validate >> plan-output.md 2>&1
+            terraform -chdir="$dir" plan -no-color -input=false >> plan-output.md 2>&1
             rc=$?
 
             {
@@ -74,7 +91,7 @@ jobs:
             } >> plan-output.md
 
             if [ $rc -ne 0 ]; then
-              echo "::warning::Plan gagal untuk stack '$stack' (exit $rc). Kalau ini stack eks/ec2 dan vpc belum pernah di-apply, ini wajar."
+              echo "::warning::Plan gagal untuk stack '$label' (exit $rc). Kalau ini stack eks/ec2 dan vpc belum pernah di-apply, ini wajar."
               overall=1
             fi
           done

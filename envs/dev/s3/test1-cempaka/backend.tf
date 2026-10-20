@@ -10,7 +10,7 @@ terraform {
 
   backend "s3" {
     bucket       = "tutd3-terraform-state-094983223261"
-    key          = "envs/dev/ec2/terraform.tfstate"
+    key          = "envs/dev/s3/test1-cempaka/terraform.tfstate"
     region       = "ap-southeast-3"
     encrypt      = true
     use_lockfile = true
@@ -25,18 +25,7 @@ provider "aws" {
       Environment = "dev"
       ManagedBy   = "terraform"
       Project     = "tutd3-infra"
-      Stack       = "ec2"
+      Stack       = "s3/test1-cempaka"
     }
-  }
-}
-
-# Baca output dari stack vpc/ (state terpisah, di-manage independen)
-data "terraform_remote_state" "vpc" {
-  backend = "s3"
-
-  config = {
-    bucket = "tutd3-terraform-state-094983223261"
-    key    = "envs/dev/vpc/terraform.tfstate"
-    region = "ap-southeast-3"
   }
 }
