@@ -45,6 +45,12 @@ variable "small_instance_mode" {
   default     = false
 }
 
+variable "admin_principal_arns" {
+  description = "Daftar IAM principal ARN (user/role/root) yang diberi akses admin penuh ke Kubernetes API cluster ini lewat EKS Access Entry. Role yang membuat cluster (CI) otomatis sudah dapat akses - ini untuk principal LAIN, mis. root user akun AWS supaya bisa lihat resource Kubernetes di AWS Console."
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

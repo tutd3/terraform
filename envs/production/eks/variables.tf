@@ -18,3 +18,9 @@ variable "node_instance_types" {
   type        = list(string)
   default     = ["t3.micro"]
 }
+
+variable "admin_principal_arns" {
+  description = "IAM principal (selain role CI) yang diberi akses admin Kubernetes API, mis. root user akun AWS supaya bisa lihat resource di AWS Console."
+  type        = list(string)
+  default     = ["arn:aws:iam::094983223261:root"]
+}
