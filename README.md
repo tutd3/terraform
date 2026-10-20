@@ -108,6 +108,24 @@ Tiap instance EC2 bisa diatur:
 - `availability_zone` (string, mis. `"ap-southeast-3b"`) - kosongkan untuk
   otomatis pakai AZ pertama yang tersedia.
 
+**Akses ke instance (SSH vs SSM):** default-nya **AWS Systems Manager Session
+Manager** (`enable_ssm = true` di `modules/ec2`) - tidak perlu SSH key atau
+buka port 22 sama sekali. Modul otomatis bikin IAM role + instance profile
+dengan policy `AmazonSSMManagedInstanceCore` untuk tiap instance. Untuk
+connect: `aws ssm start-session --target <instance-id>` (atau lewat AWS
+Console > EC2 > Connect > Session Manager).
+
+Siapa yang **boleh** mulai sesi SSM diatur lewat group IAM (`ssm:StartSession`
+ada di policy `AdministratorAccess`, TIDAK ada di `ReadOnlyAccess`) - jadi
+saat ini cuma user di group **admin** yang bisa SSM ke instance manapun,
+sesuai desain (`readonly` benar-benar read-only, tidak bisa masuk shell).
+
+Kalau tetap butuh SSH (jarang, SSM lebih aman & tidak perlu buka port):
+set `enable_ssm = false` di instance tersebut, buat EC2 Key Pair manual
+dulu di AWS (`aws ec2 create-key-pair`), isi `ec2_key_name`, dan tambahkan
+`ingress_rules` untuk port 22 (ganti `cidr_blocks` ke IP kamu saja, jangan
+`0.0.0.0/0`).
+
 ### IAM user & akses (readonly / admin)
 
 `envs/<environment>/iam/` menyediakan 2 IAM group siap pakai per environment:

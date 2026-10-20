@@ -40,13 +40,52 @@ resource "aws_security_group" "this" {
   }
 }
 
+data "aws_iam_policy_document" "ec2_assume" {
+  count = var.enable_ssm ? 1 : 0
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+# IAM role + instance profile khusus supaya SSM Agent di dalam instance bisa
+# "daftar" ke AWS Systems Manager - setelah itu bisa diakses lewat Session
+# Manager (shell lewat AWS Console/CLI, pakai izin IAM) TANPA perlu SSH key
+# atau port 22 terbuka sama sekali. Siapa yang BOLEH mulai sesi SSM diatur
+# terpisah lewat IAM policy user/group (lihat modules/iam) - role ini cuma
+# mengizinkan instance-nya "dihubungi", bukan menentukan siapa yang boleh
+# menghubungi.
+resource "aws_iam_role" "ssm" {
+  count              = var.enable_ssm ? 1 : 0
+  name               = "${var.name}-ssm-role"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume[0].json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "ssm" {
+  count      = var.enable_ssm ? 1 : 0
+  role       = aws_iam_role.ssm[0].name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ssm" {
+  count = var.enable_ssm ? 1 : 0
+  name  = "${var.name}-ssm-profile"
+  role  = aws_iam_role.ssm[0].name
+}
+
 resource "aws_instance" "this" {
   ami                    = coalesce(var.ami_id, try(data.aws_ami.amazon_linux[0].id, null))
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.this.id]
-  iam_instance_profile   = var.iam_instance_profile_name
+  iam_instance_profile   = var.enable_ssm ? aws_iam_instance_profile.ssm[0].name : var.iam_instance_profile_name
 
   root_block_device {
     volume_size = var.root_volume_size_gb
