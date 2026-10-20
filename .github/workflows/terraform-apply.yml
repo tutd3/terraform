@@ -41,10 +41,18 @@ jobs:
 
       # Urutan wajib: vpc dulu (eks & ec2 baca output-nya lewat
       # terraform_remote_state), s3 independen jadi bebas kapan saja.
+      #
+      # Scope bisa dibatasi lewat repo variable APPLY_STACKS (mis. "vpc" saja,
+      # atau "vpc s3"). Kosongkan/hapus variable itu untuk apply semua stack
+      # seperti biasa (default).
       - name: Terraform Apply (vpc -> s3 -> ec2 -> eks)
+        env:
+          APPLY_STACKS: ${{ vars.APPLY_STACKS }}
         run: |
           set -e
-          for stack in vpc s3 ec2 eks; do
+          STACKS="${APPLY_STACKS:-vpc s3 ec2 eks}"
+          echo "Stacks yang akan di-apply: $STACKS"
+          for stack in $STACKS; do
             echo "::group::Apply stack: $stack"
             terraform -chdir="envs/dev/$stack" init -input=false
             terraform -chdir="envs/dev/$stack" apply -auto-approve -input=false
