@@ -52,7 +52,7 @@ jobs:
           soft_fail: true # jangan gagalkan build dulu, sekadar laporan
           github_token: ${{ secrets.GITHUB_TOKEN }} # kurangi risiko kena rate limit
 
-      - name: Terraform Plan per environment & stack (vpc, s3/*, ec2/*, eks)
+      - name: Terraform Plan per environment & stack (vpc, iam, s3/*, ec2/*, eks)
         id: plan
         run: |
           set +e
@@ -73,6 +73,7 @@ jobs:
             [ -d "$envdir" ] || continue
             env="$(basename "$envdir")"
             DIRS+=("envs/$env/vpc")
+            DIRS+=("envs/$env/iam")
             for category in s3 ec2; do
               for d in "envs/$env/$category"/*/; do
                 [ -d "$d" ] || continue

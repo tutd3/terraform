@@ -14,10 +14,12 @@ Actions dengan OIDC (tanpa access key yang disimpan sebagai secret).
 │   ├── vpc/           # VPC, subnet publik & privat, NAT gateway
 │   ├── ec2/           # EC2 instance + security group
 │   ├── s3/            # S3 bucket (versioning, encryption, block public access)
-│   └── eks/           # EKS cluster + node group + EBS CSI driver (untuk PVC)
+│   ├── eks/           # EKS cluster + node group + EBS CSI driver (untuk PVC)
+│   └── iam/           # IAM group readonly/admin + user (lihat "IAM user & akses" di bawah)
 ├── envs/
 │   ├── production/        # ENVIRONMENT - sudah live, dipakai GitHub Environment "production"
 │   │   ├── vpc/            # Stack terpisah, state sendiri
+│   │   ├── iam/             # Stack terpisah, group readonly/admin + user
 │   │   ├── s3/              # KATEGORI - tiap subfolder = 1 bucket S3
 │   │   │   ├── app/
 │   │   │   └── test1-cempaka/
@@ -29,7 +31,7 @@ Actions dengan OIDC (tanpa access key yang disimpan sebagai secret).
 └── .github/workflows/
     ├── terraform-plan.yml   # Jalan otomatis tiap ada Pull Request ke main (plan semua environment)
     └── terraform-apply.yml  # Jalan setelah merge ke main (atau manual trigger), nunggu
-                              # 1x approval, lalu apply berurutan: vpc -> s3/* -> ec2/* -> eks
+                              # 1x approval, lalu apply berurutan: vpc -> iam -> s3/* -> ec2/* -> eks
                               # untuk SATU environment yang dipilih (default production)
 ```
 
@@ -81,6 +83,36 @@ Tiap instance EC2 bisa diatur:
 - `availability_zone` (string, mis. `"ap-southeast-3b"`) - kosongkan untuk
   otomatis pakai AZ pertama yang tersedia.
 
+### IAM user & akses (readonly / admin)
+
+`envs/<environment>/iam/` menyediakan 2 IAM group siap pakai per environment:
+- **`<name_prefix>-readonly`** - policy `ReadOnlyAccess` (cuma bisa lihat)
+- **`<name_prefix>-admin`** - policy `AdministratorAccess` (akses penuh)
+
+Belum ada user dibuat secara default. Untuk nambah user, edit
+`envs/<environment>/iam/variables.tf`:
+
+```hcl
+variable "readonly_users" {
+  default = ["nama-user-1", "nama-user-2"]
+}
+
+variable "admin_users" {
+  default = ["nama-admin"]
+}
+```
+
+lalu buka PR seperti biasa. User otomatis masuk ke group yang sesuai.
+
+**Soal password console login:** secara default user yang dibuat TIDAK dapat
+password (programmatic access only / kamu atur lewat access key secara
+terpisah). Kalau butuh password Console, isi `console_login_pgp_key` dengan
+PGP public key kamu (base64) - password akan di-generate acak dan
+**dienkripsi pakai PGP key itu** di output Terraform (`sensitive = true`,
+tidak pernah muncul plaintext di plan/log/chat). Cuma pemilik private key
+yang bisa dekripsi (`terraform output -raw admin_encrypted_passwords | base64 -d | gpg -d`).
+Kalau tidak butuh Console login, biarkan `console_login_pgp_key` kosong (default).
+
 ## Alur kerja (workflow sehari-hari)
 
 1. Buat branch baru, ubah file di `envs/<environment>/...` atau `modules/`.
@@ -104,14 +136,15 @@ Tidak harus selalu apply semua stack. Dua cara:
      menentukan kredensial AWS **dan** direktori `envs/<environment>/` yang dipakai.
    - `stacks`, misal:
      - `vpc` - cuma VPC
-     - `vpc s3 eks` (atau pakai koma: `vpc,s3,eks`) - beberapa stack
+     - `vpc iam s3 eks` (atau pakai koma: `vpc,iam,s3,eks`) - beberapa stack
+     - `iam` - group & user IAM
      - `s3` - semua bucket S3, atau `s3/loki-logs` - cuma satu bucket tertentu
      - `ec2` - semua instance EC2, atau `ec2/psql` - cuma satu instance tertentu
      - `k8s` bisa dipakai sebagai alias `eks`
      - Kosongkan untuk apply semua stack di environment itu (default)
 
-   Urutan eksekusi selalu dijaga otomatis (`vpc -> s3/* -> ec2/* -> eks`) apa pun
-   urutan yang kamu ketik. Tetap ada approval gate seperti biasa.
+   Urutan eksekusi selalu dijaga otomatis (`vpc -> iam -> s3/* -> ec2/* -> eks`)
+   apa pun urutan yang kamu ketik. Tetap ada approval gate seperti biasa.
 
 2. **Repo variable `APPLY_STACKS`:** default `stacks` untuk auto-apply saat
    merge PR ke `main` (push trigger, selalu pakai environment `production`),
