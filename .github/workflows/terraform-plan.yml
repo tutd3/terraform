@@ -44,9 +44,13 @@ jobs:
 
       - name: Security scan (tfsec)
         uses: aquasecurity/tfsec-action@v1.0.3
+        continue-on-error: true # action ini kadang gagal karena GitHub API rate limit
+        # saat fetch versi terbaru, bukan cuma karena temuan security - jangan
+        # sampai itu ikut nge-block Terraform Plan di bawah.
         with:
           working_directory: .
           soft_fail: true # jangan gagalkan build dulu, sekadar laporan
+          github_token: ${{ secrets.GITHUB_TOKEN }} # kurangi risiko kena rate limit
 
       - name: Terraform Plan per stack (vpc, s3, ec2/*, eks)
         id: plan
