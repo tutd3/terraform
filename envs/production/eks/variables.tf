@@ -24,3 +24,9 @@ variable "admin_principal_arns" {
   type        = list(string)
   default     = ["arn:aws:iam::094983223261:root"]
 }
+
+variable "node_disk_size_gb" {
+  description = "Ukuran EBS root volume tiap worker node (GB)."
+  type        = number
+  default     = 100
+}

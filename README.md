@@ -176,6 +176,14 @@ tidak pernah muncul plaintext di plan/log/chat). Cuma pemilik private key
 yang bisa dekripsi (`terraform output -raw admin_encrypted_passwords | base64 -d | gpg -d`).
 Kalau tidak butuh Console login, biarkan `console_login_pgp_key` kosong (default).
 
+### EKS node group - ukuran EBS root volume
+
+`node_disk_size_gb` di `envs/<environment>/eks/variables.tf` (default `100`)
+- ukuran EBS root volume tiap worker node. Default AWS kalau tidak diset
+sama sekali cuma 20GB, sering kurang begitu banyak image container ditarik.
+Naikkan kalau butuh lebih besar lagi, tidak ada batas atas khusus dari modul
+ini (ikuti batas EBS biasa).
+
 ## Alur kerja (workflow sehari-hari)
 
 1. Buat branch baru, ubah file di `envs/<environment>/...` atau `modules/`.
