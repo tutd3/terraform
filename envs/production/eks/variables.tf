@@ -30,3 +30,9 @@ variable "enable_public_access" {
   type        = bool
   default     = false
 }
+
+variable "node_disk_size_gb" {
+  description = "Ukuran EBS root volume tiap worker node (GB)."
+  type        = number
+  default     = 100
+}
