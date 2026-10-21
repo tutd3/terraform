@@ -11,12 +11,13 @@ module "wetech_devops_prod" {
   source = "../../../../modules/ec2"
 
   # Naming standar untuk semua instance EC2: wetech-<service>-<environment>
-  name          = "wetech-${var.service_name}-prod"
-  vpc_id        = data.terraform_remote_state.vpc.outputs.vpc_id
-  subnet_id     = local.subnet_id
-  instance_type = var.instance_type
-  ami_id        = var.ami_id
-  key_name      = var.ec2_key_name
+  name                = "wetech-${var.service_name}-prod"
+  vpc_id              = data.terraform_remote_state.vpc.outputs.vpc_id
+  subnet_id           = local.subnet_id
+  instance_type       = var.instance_type
+  ami_id              = var.ami_id
+  root_volume_size_gb = var.root_volume_size_gb
+  key_name            = var.ec2_key_name
 
   # Akses ke instance ini lewat AWS Systems Manager Session Manager
   # (enable_ssm default true di modul) - tidak perlu SSH/port 22 terbuka

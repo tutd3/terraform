@@ -21,6 +21,12 @@ variable "ami_id" {
   default     = "ami-039f9d16a13e3a0a7"
 }
 
+variable "root_volume_size_gb" {
+  description = "Ukuran EBS root volume (GB)."
+  type        = number
+  default     = 50
+}
+
 variable "ec2_key_name" {
   description = "Nama EC2 key pair untuk SSH. Kosongkan kalau belum punya."
   type        = string
