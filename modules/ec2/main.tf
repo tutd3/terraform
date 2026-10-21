@@ -91,7 +91,9 @@ resource "aws_instance" "this" {
 
   root_block_device {
     volume_size = var.root_volume_size_gb
-    volume_type = "gp3"
+    volume_type = var.root_volume_type
+    iops        = var.root_volume_iops
+    throughput  = var.root_volume_type == "gp3" ? var.root_volume_throughput : null
     encrypted   = true
   }
 
