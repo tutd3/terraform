@@ -21,10 +21,22 @@ module "wetech_devops_prod" {
 
   # Akses ke instance ini lewat AWS Systems Manager Session Manager
   # (enable_ssm default true di modul) - tidak perlu SSH/port 22 terbuka
-  # sama sekali, jadi TIDAK ADA ingress rule di sini. Siapa yang boleh mulai
-  # sesi SSM diatur lewat group IAM (saat ini: admin saja, lihat
-  # modules/iam), bukan lewat security group.
-  ingress_rules = []
+  # sama sekali untuk itu. Siapa yang boleh mulai sesi SSM diatur lewat
+  # group IAM (saat ini: admin saja, lihat modules/iam), bukan lewat
+  # security group.
+  #
+  # Rule di bawah ini buka SEMUA port TCP, tapi cuma untuk traffic yang
+  # asalnya dari dalam VPC sendiri (cidr_blocks = CIDR VPC, BUKAN
+  # 0.0.0.0/0) - jadi tidak terekspos ke internet.
+  ingress_rules = [
+    {
+      description = "All TCP dari dalam VPC saja"
+      from_port   = 0
+      to_port     = 65535
+      protocol    = "tcp"
+      cidr_blocks = [data.terraform_remote_state.vpc.outputs.vpc_cidr]
+    }
+  ]
 
   tags = {
     Environment = "production"
