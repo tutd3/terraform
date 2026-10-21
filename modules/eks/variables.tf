@@ -80,6 +80,12 @@ variable "enable_network_policy" {
   default     = false
 }
 
+variable "enable_public_access" {
+  description = "Set false (default, lebih aman) supaya API server Kubernetes CUMA bisa diakses dari dalam VPC (lewat VPN/bastion yang masuk ke VPC ini) - endpoint publik dimatikan total, tidak sekadar dibatasi IP. CI/CD tetap jalan normal walau false, karena Terraform mengelola cluster lewat AWS EKS control plane API (eks:*), bukan lewat API server Kubernetes-nya langsung. Set true kalau mau akses dari internet tanpa VPN (TIDAK disarankan untuk production)."
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

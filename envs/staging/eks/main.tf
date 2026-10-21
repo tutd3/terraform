@@ -12,6 +12,7 @@ module "eks" {
   node_disk_size_gb    = var.node_disk_size_gb
   vpc_cidr             = data.terraform_remote_state.vpc.outputs.vpc_cidr
   admin_principal_arns = var.admin_principal_arns
+  enable_public_access = var.enable_public_access
 
   tags = {
     Environment = "staging"

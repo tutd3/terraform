@@ -25,6 +25,12 @@ variable "admin_principal_arns" {
   default     = ["arn:aws:iam::094983223261:root"]
 }
 
+variable "enable_public_access" {
+  description = "false (default) = API server cuma bisa diakses dari dalam VPC (lewat VPN nanti). Ganti ke true kalau butuh akses internet langsung sebelum VPN jadi."
+  type        = bool
+  default     = false
+}
+
 variable "node_disk_size_gb" {
   description = "Ukuran EBS root volume tiap worker node (GB)."
   type        = number

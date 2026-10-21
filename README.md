@@ -176,6 +176,19 @@ tidak pernah muncul plaintext di plan/log/chat). Cuma pemilik private key
 yang bisa dekripsi (`terraform output -raw admin_encrypted_passwords | base64 -d | gpg -d`).
 Kalau tidak butuh Console login, biarkan `console_login_pgp_key` kosong (default).
 
+### Akses API server EKS (publik vs privat-lewat-VPN)
+
+`enable_public_access` di `envs/<environment>/eks/variables.tf` - **default
+`false`** (lebih aman): API server Kubernetes cuma bisa diakses dari **dalam
+VPC** (lewat VPN/bastion yang masuk ke VPC ini), endpoint publik dimatikan
+total. CI/CD tetap jalan normal walau `false` - Terraform mengelola cluster
+lewat AWS EKS control plane API (`eks:*`), bukan lewat API server Kubernetes
+langsung.
+
+Set `true` kalau mau akses `kubectl` dari internet langsung tanpa VPN (mis.
+sebelum VPN selesai dibangun) - **tidak disarankan untuk production**, karena
+endpoint-nya jadi terbuka ke `0.0.0.0/0` tanpa batasan IP sama sekali.
+
 ### EKS node group - ukuran EBS root volume
 
 `node_disk_size_gb` di `envs/<environment>/eks/variables.tf` (default `100`)
