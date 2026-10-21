@@ -195,7 +195,25 @@ endpoint-nya jadi terbuka ke `0.0.0.0/0` tanpa batasan IP sama sekali.
 - ukuran EBS root volume tiap worker node. Default AWS kalau tidak diset
 sama sekali cuma 20GB, sering kurang begitu banyak image container ditarik.
 Naikkan kalau butuh lebih besar lagi, tidak ada batas atas khusus dari modul
-ini (ikuti batas EBS biasa).
+ini (ikuti batas EBS biasa). IOPS/throughput node pakai default AWS (gp3:
+3000 IOPS/125 MB/s) - belum bisa diatur manual, butuh Launch Template
+terpisah kalau suatu saat perlu (perubahan lebih besar, belum ada di modul
+ini sekarang).
+
+### EKS node group - AZ untuk worker node (hemat cost)
+
+`node_availability_zones` di `envs/<environment>/eks/variables.tf` (default
+`["ap-southeast-3a"]` - cuma 1 AZ, hemat biaya) - AZ tempat worker node
+ditempatkan (subnet PRIVAT di AZ itu). **Cluster control plane TETAP
+multi-AZ** apa pun isi ini (wajib dari AWS, tidak bisa 1 AZ) - yang dibatasi
+cuma node-nya.
+
+Isi 2+ AZ untuk HA lebih tinggi, mis. `["ap-southeast-3a", "ap-southeast-3b"]`.
+**Mengubah isi variable ini di cluster yang SUDAH ADA akan mengganti total
+node group** (subnet node group adalah ForceNew di AWS - tidak bisa pindah
+AZ in-place) - node lama dihancurkan, node baru dibuat di AZ yang baru. Ada
+downtime singkat untuk pod yang jalan di node lama (termasuk addon sistem
+seperti coredns) selama transisi.
 
 ## Alur kerja (workflow sehari-hari)
 

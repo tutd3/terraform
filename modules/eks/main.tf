@@ -88,11 +88,15 @@ resource "aws_iam_role_policy_attachment" "node_ecr" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
+locals {
+  node_subnet_ids = length(var.node_subnet_ids) > 0 ? var.node_subnet_ids : var.subnet_ids
+}
+
 resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.cluster_name}-default"
   node_role_arn   = aws_iam_role.node.arn
-  subnet_ids      = var.subnet_ids
+  subnet_ids      = local.node_subnet_ids
 
   instance_types = var.node_instance_types
   capacity_type  = var.node_capacity_type
