@@ -16,8 +16,8 @@ credentials milikmu sendiri (jangan pernah dibagikan ke siapa pun/AI apa pun).
    aws configure
    ```
    Ini akan minta Access Key ID & Secret Access Key dari user IAM milikmu
-   sendiri (bukan dari role `gh-actions-terraform`). Kalau belum ada, buat
-   dulu satu IAM user untuk dirimu sendiri di AWS Console dengan akses admin.
+   sendiri (bukan dari role CI/CD). Kalau belum ada, buat dulu satu IAM user
+   untuk dirimu sendiri di AWS Console dengan akses admin.
 
 3. Jalankan:
    ```bash
@@ -31,10 +31,9 @@ credentials milikmu sendiri (jangan pernah dibagikan ke siapa pun/AI apa pun).
    ```bash
    terraform output
    ```
-   Pastikan `github_actions_role_arn` hasilnya persis:
-   ```
-   arn:aws:iam::094983223261:role/gh-actions-terraform
-   ```
+   Catat nilai `github_actions_role_arn` - ini yang nanti diisi ke GitHub
+   Environment variable `AWS_ROLE_ARN` (lihat README.md utama bagian
+   "Environment production/staging").
 
 5. File `terraform.tfstate` di folder ini adalah satu-satunya "sumber
    kebenaran" untuk resource-resource di atas. Simpan baik-baik (jangan
