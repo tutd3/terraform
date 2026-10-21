@@ -15,9 +15,9 @@ variable "instance_type" {
 }
 
 variable "ami_id" {
-  description = "AMI ID spesifik untuk instance ini. Kosongkan (null) untuk otomatis pakai Amazon Linux 2023 terbaru (non-minimal, sudah ada SSM Agent) - lihat modules/ec2."
+  description = "AMI ID spesifik untuk instance ini. Kosongkan (null) untuk otomatis pakai Amazon Linux 2023 terbaru (non-minimal, sudah ada SSM Agent) - lihat modules/ec2. Sekarang: Ubuntu 26.04 (Canonical, resmi, sudah ada SSM Agent bawaan)."
   type        = string
-  default     = null
+  default     = "ami-039f9d16a13e3a0a7"
 }
 
 variable "ec2_key_name" {
