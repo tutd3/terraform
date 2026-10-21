@@ -9,6 +9,7 @@ module "eks" {
   )
   node_instance_types   = var.node_instance_types
   small_instance_mode   = true # t3.micro - lihat catatan di modules/eks/variables.tf
+  node_disk_size_gb     = var.node_disk_size_gb
   vpc_cidr              = data.terraform_remote_state.vpc.outputs.vpc_cidr
   enable_network_policy = true
   admin_principal_arns = concat(
