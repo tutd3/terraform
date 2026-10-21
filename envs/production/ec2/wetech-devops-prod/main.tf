@@ -38,6 +38,13 @@ module "wetech_devops_prod" {
     }
   ]
 
+  # Security group yang dibuat manual di AWS Console, di-attach ke instance
+  # ini selain security group bawaan modul di atas.
+  additional_security_group_ids = [
+    "sg-08b78dd35ea62cba1",
+    "sg-0161da61ad4b601fd",
+  ]
+
   tags = {
     Environment = "production"
     Service     = var.service_name
