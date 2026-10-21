@@ -11,6 +11,7 @@ module "eks" {
   small_instance_mode   = true # t3.micro - lihat catatan di modules/eks/variables.tf
   vpc_cidr              = data.terraform_remote_state.vpc.outputs.vpc_cidr
   enable_network_policy = true
+  enable_public_access  = var.enable_public_access
   admin_principal_arns = concat(
     var.admin_principal_arns, # mis. root user, lihat variables.tf
     values(data.terraform_remote_state.iam.outputs.admin_user_arns),

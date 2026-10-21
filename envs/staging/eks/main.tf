@@ -11,6 +11,7 @@ module "eks" {
   small_instance_mode  = true # t3.micro - lihat catatan di modules/eks/variables.tf
   vpc_cidr             = data.terraform_remote_state.vpc.outputs.vpc_cidr
   admin_principal_arns = var.admin_principal_arns
+  enable_public_access = var.enable_public_access
 
   tags = {
     Environment = "staging"

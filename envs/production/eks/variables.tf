@@ -24,3 +24,9 @@ variable "admin_principal_arns" {
   type        = list(string)
   default     = ["arn:aws:iam::094983223261:root"]
 }
+
+variable "enable_public_access" {
+  description = "false (default) = API server cuma bisa diakses dari dalam VPC (lewat VPN nanti). Ganti ke true kalau butuh akses internet langsung sebelum VPN jadi (tidak disarankan untuk production)."
+  type        = bool
+  default     = false
+}
