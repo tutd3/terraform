@@ -10,8 +10,9 @@ variable "service_name" {
 }
 
 variable "instance_type" {
-  type    = string
-  default = "m6i.xlarge"
+  description = "Instance type - default t3.micro karena akun ini masih ada pembatasan Free Tier (tipe non-free-tier ditolak saat launch)."
+  type        = string
+  default     = "t3.micro"
 }
 
 variable "ami_id" {
