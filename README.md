@@ -107,6 +107,14 @@ Tiap instance EC2 bisa diatur:
   lewat NAT gateway).
 - `availability_zone` (string, mis. `"ap-southeast-3b"`) - kosongkan untuk
   otomatis pakai AZ pertama yang tersedia.
+- `ami_id` - bebas OS apa pun (Windows Server, distro Linux lain, AMI
+  custom/marketplace), tidak terbatas Amazon Linux. Kosongkan untuk otomatis
+  pakai Amazon Linux 2023 terbaru (non-minimal, sudah ada SSM Agent).
+- `root_volume_type` (`gp3` default, atau `gp2`/`io1`/`io2`/`st1`/`sc1`),
+  `root_volume_iops`, `root_volume_throughput` (MB/s, **cuma berlaku untuk
+  gp3**) - kosongkan `root_volume_iops`/`root_volume_throughput` untuk pakai
+  default AWS (gp3: 3000 IOPS / 125 MB/s). `io1`/`io2` **wajib** isi
+  `root_volume_iops` (AWS tidak punya default untuk tipe itu).
 
 **Akses ke instance (SSH vs SSM):** default-nya **AWS Systems Manager Session
 Manager** (`enable_ssm = true` di `modules/ec2`) - tidak perlu SSH key atau
