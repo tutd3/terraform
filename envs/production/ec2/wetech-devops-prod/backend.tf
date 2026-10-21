@@ -10,7 +10,7 @@ terraform {
 
   backend "s3" {
     bucket       = "tutd3-terraform-state-094983223261"
-    key          = "envs/production/ec2/example/terraform.tfstate"
+    key          = "envs/production/ec2/wetech-devops-prod/terraform.tfstate"
     region       = "ap-southeast-3"
     encrypt      = true
     use_lockfile = true
@@ -24,8 +24,8 @@ provider "aws" {
     tags = {
       Environment = "production"
       ManagedBy   = "terraform"
-      Project     = "tutd3-infra"
-      Stack       = "ec2/example"
+      Project     = "wetech"
+      Stack       = "ec2/wetech-devops-prod"
     }
   }
 }

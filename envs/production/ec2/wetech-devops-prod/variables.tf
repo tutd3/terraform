@@ -3,9 +3,15 @@ variable "aws_region" {
   default = "ap-southeast-3"
 }
 
-variable "name_prefix" {
+variable "service_name" {
+  description = "Nama service untuk instance ini - dipakai di naming standar wetech-<service>-<environment>."
+  type        = string
+  default     = "devops"
+}
+
+variable "instance_type" {
   type    = string
-  default = "tutd3-production"
+  default = "m6i.xlarge"
 }
 
 variable "ec2_key_name" {
@@ -23,5 +29,5 @@ variable "public" {
 variable "availability_zone" {
   description = "Zona spesifik, mis. \"ap-southeast-3b\". Kosongkan untuk otomatis pakai AZ pertama yang tersedia."
   type        = string
-  default     = ""
+  default     = "ap-southeast-3a"
 }

@@ -13,7 +13,7 @@ variable "state_bucket_name" {
 variable "role_name" {
   description = "Nama IAM role yang di-assume oleh GitHub Actions"
   type        = string
-  default     = "gh-actions-terraform"
+  default     = "wetech-github-actions-terraform"
 }
 
 variable "github_org" {

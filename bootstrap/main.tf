@@ -30,7 +30,7 @@ provider "aws" {
   default_tags {
     tags = {
       ManagedBy = "terraform"
-      Project   = "tutd3-infra"
+      Project   = "wetech"
       Stack     = "bootstrap"
     }
   }
@@ -129,7 +129,7 @@ resource "aws_iam_role" "github_actions_terraform" {
 # resource-nya tidak dibatasi ke nama tertentu. Untuk akun solo seperti ini,
 # trade-off ini saya anggap wajar (perbaikan besar dari full admin lintas
 # SEMUA service AWS), tapi kalau mau lebih ketat lagi, resource IAM bisa
-# dibatasi ke ARN yang match prefix proyek (mis. "tutd3-*") - kasih tahu saya
+# dibatasi ke ARN yang match prefix proyek (mis. "wetech-*") - kasih tahu saya
 # kalau mau itu.
 resource "aws_iam_policy" "github_actions_terraform" {
   name        = "${var.role_name}-policy"

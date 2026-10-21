@@ -1,5 +1,5 @@
 variable "name_prefix" {
-  description = "Prefix nama untuk group IAM, mis. \"tutd3-production\""
+  description = "Prefix nama untuk group IAM, mis. \"wetech-production\""
   type        = string
 }
 

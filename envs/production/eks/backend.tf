@@ -24,7 +24,7 @@ provider "aws" {
     tags = {
       Environment = "production"
       ManagedBy   = "terraform"
-      Project     = "tutd3-infra"
+      Project     = "wetech"
       Stack       = "eks"
     }
   }

@@ -25,7 +25,7 @@ Actions dengan OIDC (tanpa access key yang disimpan sebagai secret).
 │   │   │   ├── app/
 │   │   │   └── test1-cempaka/
 │   │   ├── ec2/              # KATEGORI - tiap subfolder = 1 instance EC2
-│   │   │   └── example/
+│   │   │   └── wetech-devops-prod/  # wetech-<service>-<environment>
 │   │   └── eks/              # Stack terpisah, baca output vpc lewat terraform_remote_state
 │   └── staging/            # ENVIRONMENT - struktur sama persis, belum pernah di-apply
 │       └── ...                (lihat "Environment production/staging" di bawah)
@@ -89,17 +89,22 @@ envs/production/s3/
 └── psql-logs/       # contoh: bucket untuk backup PostgreSQL
 
 envs/production/ec2/
-├── example/   # sudah ada
-├── psql/      # contoh: server PostgreSQL
-└── posthog/   # contoh: self-hosted PostHog
+├── wetech-devops-prod/   # sudah ada
+├── wetech-psql-prod/     # contoh: server PostgreSQL
+└── wetech-posthog-prod/  # contoh: self-hosted PostHog
 ```
 
+**Naming standar untuk nama folder + `name` instance EC2:** `wetech-<service>-<environment>`
+(mis. `wetech-devops-prod`, `wetech-psql-staging`) - `<service>` bebas sesuai
+tujuan instance-nya, `<environment>` singkat (`prod`/`staging`).
+
 Untuk tambah instance baru: copy salah satu folder yang sudah ada (mis.
-`s3/app/` atau `ec2/example/`) jadi `<kategori>/<nama-baru>/`, ganti `key` di
-`backend.tf` (jadi `envs/<environment>/<kategori>/<nama-baru>/terraform.tfstate`),
-sesuaikan `main.tf`/`variables.tf` sesuai kebutuhan. Tidak perlu ubah workflow
-sama sekali - CI otomatis men-discover semua subfolder di `s3/` dan `ec2/`, di
-semua environment.
+`s3/app/` atau `ec2/wetech-devops-prod/`) jadi `<kategori>/<nama-baru>/`, ganti
+`key` di `backend.tf` (jadi `envs/<environment>/<kategori>/<nama-baru>/terraform.tfstate`),
+sesuaikan `main.tf`/`variables.tf` sesuai kebutuhan (termasuk `service_name`
+untuk ikuti naming standar di atas). Tidak perlu ubah workflow sama sekali -
+CI otomatis men-discover semua subfolder di `s3/` dan `ec2/`, di semua
+environment.
 
 Tiap instance EC2 bisa diatur:
 - `public` (bool) - `true` = subnet publik (dapat IP publik), `false` = subnet
@@ -273,7 +278,7 @@ Status sekarang:
   (akun AWS yang sekarang ada), dan `envs/production/` sudah berisi resource
   yang live (VPC, EC2 instance, dst).
 - **`staging`** - environment & direktori `envs/staging/` sudah disiapkan
-  (struktur identik dengan production, prefix nama `tutd3-staging`,
+  (struktur identik dengan production, prefix nama `wetech-staging`,
   nama bucket S3 sudah disesuaikan supaya tidak bentrok), tapi
   `AWS_ROLE_ARN`-nya **sengaja dikosongkan** - fail-safe supaya tidak ada yang
   tidak sengaja apply ke akun/role yang salah. Isi lewat:
@@ -309,7 +314,7 @@ jalan (chicken-and-egg problem).
   seluruh folder `envs/production` (semua stack & kategori di dalamnya) jadi
   `envs/<nama-environment-baru>`, ganti `key` di tiap `backend.tf` (termasuk
   referensi `terraform_remote_state` di `ec2/*`/`eks`), ganti prefix nama
-  resource (`tutd3-production` -> `tutd3-<nama-baru>`) dan nama bucket S3
+  resource (`wetech-production` -> `wetech-<nama-baru>`) dan nama bucket S3
   (harus unik global) di `variables.tf`. Lalu buat GitHub Environment baru
   dengan nama yang sama dan isi `AWS_ROLE_ARN`/`AWS_REGION`-nya, dan tambahkan
   namanya ke pilihan `environment` di `terraform-apply.yml`.

@@ -5,7 +5,7 @@ variable "aws_region" {
 
 variable "name_prefix" {
   type    = string
-  default = "tutd3-production"
+  default = "wetech-production"
 }
 
 variable "kubernetes_version" {
@@ -14,9 +14,9 @@ variable "kubernetes_version" {
 }
 
 variable "node_instance_types" {
-  description = "Instance type untuk EKS worker node. Default t3.micro karena akun AWS ini masih ada pembatasan Free Tier (tipe non-free-tier ditolak saat launch). Ganti ke t3.medium/lainnya setelah pembatasan itu dilepas."
+  description = "Instance type untuk EKS worker node production."
   type        = list(string)
-  default     = ["t3.micro"]
+  default     = ["m6i.xlarge"]
 }
 
 variable "admin_principal_arns" {
