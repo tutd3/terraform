@@ -9,8 +9,14 @@ variable "kubernetes_version" {
 }
 
 variable "subnet_ids" {
-  description = "Subnet (idealnya campuran publik & privat, minimal 2 AZ) untuk cluster & node group"
+  description = "Subnet untuk CLUSTER (control plane) - WAJIB minimal 2 AZ, ini syarat AWS untuk EKS, tidak bisa 1 AZ."
   type        = list(string)
+}
+
+variable "node_subnet_ids" {
+  description = "Subnet khusus untuk WORKER NODE - boleh beda dari subnet_ids cluster (mis. cuma 1-2 AZ untuk hemat biaya, sementara cluster control plane tetap multi-AZ). Kosongkan ([], default) untuk pakai subnet_ids yang sama seperti cluster (semua AZ)."
+  type        = list(string)
+  default     = []
 }
 
 variable "node_instance_types" {

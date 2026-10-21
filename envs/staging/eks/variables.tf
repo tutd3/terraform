@@ -36,3 +36,9 @@ variable "node_disk_size_gb" {
   type        = number
   default     = 100
 }
+
+variable "node_availability_zones" {
+  description = "AZ untuk worker node EKS - isi 1 AZ (mis. [\"ap-southeast-3a\"]) untuk hemat biaya, atau 2+ untuk HA lebih tinggi. Cluster control plane TETAP multi-AZ (wajib dari AWS) apa pun isi ini - yang dibatasi cuma node-nya."
+  type        = list(string)
+  default     = ["ap-southeast-3a"]
+}
