@@ -7,13 +7,15 @@ locals {
   subnet_id    = local.subnet_by_az[local.selected_az]
 }
 
-module "example_ec2" {
+module "wetech_devops_prod" {
   source = "../../../../modules/ec2"
 
-  name      = "${var.name_prefix}-example"
-  vpc_id    = data.terraform_remote_state.vpc.outputs.vpc_id
-  subnet_id = local.subnet_id
-  key_name  = var.ec2_key_name
+  # Naming standar untuk semua instance EC2: wetech-<service>-<environment>
+  name          = "wetech-${var.service_name}-prod"
+  vpc_id        = data.terraform_remote_state.vpc.outputs.vpc_id
+  subnet_id     = local.subnet_id
+  instance_type = var.instance_type
+  key_name      = var.ec2_key_name
 
   # Akses ke instance ini lewat AWS Systems Manager Session Manager
   # (enable_ssm default true di modul) - tidak perlu SSH/port 22 terbuka
@@ -24,6 +26,6 @@ module "example_ec2" {
 
   tags = {
     Environment = "production"
-    Purpose     = "example"
+    Service     = var.service_name
   }
 }

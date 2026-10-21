@@ -18,7 +18,7 @@ module "eks" {
   )
   node_subnet_ids       = local.node_subnet_ids
   node_instance_types   = var.node_instance_types
-  small_instance_mode   = true # t3.micro - lihat catatan di modules/eks/variables.tf
+  small_instance_mode   = false # m6i.xlarge - cukup besar, addon tetap HA (2 replica)
   node_disk_size_gb     = var.node_disk_size_gb
   vpc_cidr              = data.terraform_remote_state.vpc.outputs.vpc_cidr
   enable_network_policy = true

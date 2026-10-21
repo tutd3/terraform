@@ -5,7 +5,7 @@ variable "aws_region" {
 
 variable "name_prefix" {
   type    = string
-  default = "tutd3-staging"
+  default = "wetech-staging"
 }
 
 # Nilai readonly_users/admin_users TIDAK di-default di sini - isinya ada di

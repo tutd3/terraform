@@ -5,7 +5,7 @@ variable "aws_region" {
 
 variable "name_prefix" {
   type    = string
-  default = "tutd3-staging"
+  default = "wetech-staging"
 }
 
 variable "tag_for_eks" {
