@@ -77,6 +77,12 @@ variable "ingress_rules" {
   default = []
 }
 
+variable "additional_security_group_ids" {
+  description = "ID security group tambahan yang mau di-attach ke instance ini, selain security group bawaan modul (aws_security_group.this). Bisa punya ID security group yang sudah ada/dibuat manual di AWS Console - cukup kasih ID-nya di sini, TIDAK perlu di-import ke Terraform state karena yang dikelola Terraform cuma referensinya di instance, bukan security group itu sendiri."
+  type        = list(string)
+  default     = []
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

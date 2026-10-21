@@ -10,8 +10,21 @@ variable "service_name" {
 }
 
 variable "instance_type" {
-  type    = string
-  default = "m6i.xlarge"
+  description = "Instance type - default t3.micro karena akun ini masih ada pembatasan Free Tier (tipe non-free-tier ditolak saat launch)."
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "ami_id" {
+  description = "AMI ID spesifik untuk instance ini. Kosongkan (null) untuk otomatis pakai Amazon Linux 2023 terbaru (non-minimal, sudah ada SSM Agent) - lihat modules/ec2. Sekarang: Ubuntu 26.04 (Canonical, resmi, sudah ada SSM Agent bawaan)."
+  type        = string
+  default     = "ami-039f9d16a13e3a0a7"
+}
+
+variable "root_volume_size_gb" {
+  description = "Ukuran EBS root volume (GB)."
+  type        = number
+  default     = 50
 }
 
 variable "ec2_key_name" {

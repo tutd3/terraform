@@ -86,7 +86,7 @@ resource "aws_instance" "this" {
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   key_name               = var.key_name
-  vpc_security_group_ids = [aws_security_group.this.id]
+  vpc_security_group_ids = concat([aws_security_group.this.id], var.additional_security_group_ids)
   iam_instance_profile   = var.enable_ssm ? aws_iam_instance_profile.ssm[0].name : var.iam_instance_profile_name
 
   root_block_device {
