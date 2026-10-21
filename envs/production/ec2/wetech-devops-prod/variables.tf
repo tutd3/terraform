@@ -14,6 +14,12 @@ variable "instance_type" {
   default = "m6i.xlarge"
 }
 
+variable "ami_id" {
+  description = "AMI ID spesifik untuk instance ini. Kosongkan (null) untuk otomatis pakai Amazon Linux 2023 terbaru (non-minimal, sudah ada SSM Agent) - lihat modules/ec2."
+  type        = string
+  default     = null
+}
+
 variable "ec2_key_name" {
   description = "Nama EC2 key pair untuk SSH. Kosongkan kalau belum punya."
   type        = string

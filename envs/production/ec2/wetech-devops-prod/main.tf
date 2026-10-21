@@ -15,6 +15,7 @@ module "wetech_devops_prod" {
   vpc_id        = data.terraform_remote_state.vpc.outputs.vpc_id
   subnet_id     = local.subnet_id
   instance_type = var.instance_type
+  ami_id        = var.ami_id
   key_name      = var.ec2_key_name
 
   # Akses ke instance ini lewat AWS Systems Manager Session Manager
