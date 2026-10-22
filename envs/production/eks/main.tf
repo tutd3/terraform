@@ -26,6 +26,7 @@ module "eks" {
   admin_principal_arns = concat(
     var.admin_principal_arns, # mis. root user, lihat variables.tf
     values(data.terraform_remote_state.iam.outputs.admin_user_arns),
+    [data.terraform_remote_state.iam.outputs.eks_cluster_role_arn],
   )
   viewer_principal_arns = values(data.terraform_remote_state.iam.outputs.readonly_user_arns)
 
