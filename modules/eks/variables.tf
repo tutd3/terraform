@@ -57,6 +57,12 @@ variable "small_instance_mode" {
   default     = false
 }
 
+variable "enable_karpenter" {
+  description = "Set true untuk menyiapkan IAM role, SQS interruption queue, EventBridge rule, dan tag discovery subnet/security group yang dibutuhkan Karpenter (node provisioning dinamis - Karpenter yang bikin EC2 instance sesuai kebutuhan pod, bukan node group static). Karpenter sendiri (controller pod + manifest NodePool/EC2NodeClass di Kubernetes) TIDAK ter-install di sini - itu langkah terpisah (Helm), lihat output karpenter_* untuk nilai yang dibutuhkan saat install."
+  type        = bool
+  default     = false
+}
+
 variable "node_group_system_taint" {
   description = "Set true untuk kasih taint nodegroup/system=false:NoSchedule ke node group default - menjadikan node group ini KHUSUS buat addon sistem (CoreDNS, EBS CSI controller - sudah dikasih toleration yang cocok di modul ini). kube-proxy & vpc-cni tidak perlu toleration tambahan (sudah toleransi semua taint by default dari AWS). PENTING: kalau ini node group SATU-SATUNYA di cluster, pod aplikasi biasa (tanpa toleration yang sama) tidak akan bisa di-schedule sama sekali sampai ada node group lain yang tidak di-taint."
   type        = bool
