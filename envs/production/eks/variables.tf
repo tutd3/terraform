@@ -14,9 +14,9 @@ variable "kubernetes_version" {
 }
 
 variable "node_instance_types" {
-  description = "Instance type untuk EKS worker node production."
+  description = "Instance type untuk EKS worker node production. t3.micro = Free Tier eligible (±750 jam/bulan per akun, cuma cukup untuk 1 instance nonstop - node kedua di luar jatah itu tetap kena biaya)."
   type        = list(string)
-  default     = ["m6i.xlarge"]
+  default     = ["t3.micro"]
 }
 
 variable "admin_principal_arns" {
