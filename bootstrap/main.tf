@@ -172,6 +172,22 @@ resource "aws_iam_policy" "github_actions_terraform" {
         Effect   = "Allow"
         Action   = ["ssm:GetParameter", "ssm:GetParameters"]
         Resource = "arn:aws:ssm:*::parameter/aws/service/*"
+      },
+      {
+        # Dibutuhkan modules/eks/karpenter.tf: SQS interruption queue.
+        Sid      = "SQS"
+        Effect   = "Allow"
+        Action   = "sqs:*"
+        Resource = "*"
+      },
+      {
+        # Dibutuhkan modules/eks/karpenter.tf: EventBridge rule buat
+        # interruption notification (spot interruption, instance
+        # state-change, dll).
+        Sid      = "EventBridge"
+        Effect   = "Allow"
+        Action   = "events:*"
+        Resource = "*"
       }
     ]
   })
