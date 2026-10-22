@@ -24,6 +24,14 @@ resource "aws_iam_role_policy_attachment" "cluster_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
+# Direkomendasikan AWS sepasang dengan AmazonEKSClusterPolicy di role control
+# plane - dibutuhkan untuk ENI trunking/IP density (mis. kalau nanti ada
+# worker Windows atau mode networking tertentu).
+resource "aws_iam_role_policy_attachment" "cluster_vpc_resource_controller" {
+  role       = aws_iam_role.cluster.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
+}
+
 # --- EKS Cluster ---
 resource "aws_eks_cluster" "this" {
   name     = var.cluster_name

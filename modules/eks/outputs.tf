@@ -17,3 +17,7 @@ output "oidc_provider_arn" {
 output "node_role_arn" {
   value = aws_iam_role.node.arn
 }
+
+output "cluster_role_name" {
+  value = aws_iam_role.cluster.name
+}
