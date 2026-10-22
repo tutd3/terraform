@@ -56,7 +56,7 @@ resource "aws_iam_role_policy_attachment" "karpenter_node" {
     "arn:${local.karpenter_partition}:iam::aws:policy/AmazonEKSWorkerNodePolicy",
     "arn:${local.karpenter_partition}:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly",
     "arn:${local.karpenter_partition}:iam::aws:policy/AmazonSSMManagedInstanceCore",
-  ]) : []
+  ]) : toset([])
 
   role       = aws_iam_role.karpenter_node[0].name
   policy_arn = each.value
@@ -159,7 +159,7 @@ resource "aws_cloudwatch_event_target" "karpenter_interruption" {
 #     group mana yang boleh dipakai bikin node baru (diatur lewat
 #     EC2NodeClass nanti, subnetSelectorTerms/securityGroupSelectorTerms).
 resource "aws_ec2_tag" "karpenter_subnet_discovery" {
-  for_each = var.enable_karpenter ? toset(local.node_subnet_ids) : []
+  for_each = var.enable_karpenter ? toset(local.node_subnet_ids) : toset([])
 
   resource_id = each.value
   key         = "karpenter.sh/discovery"
