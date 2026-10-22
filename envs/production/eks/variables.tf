@@ -26,9 +26,9 @@ variable "admin_principal_arns" {
 }
 
 variable "enable_public_access" {
-  description = "false (default) = API server cuma bisa diakses dari dalam VPC (lewat VPN nanti). Ganti ke true kalau butuh akses internet langsung sebelum VPN jadi (tidak disarankan untuk production)."
+  description = "false = API server cuma bisa diakses dari dalam VPC (lewat VPN nanti). true (sekarang) = akses internet langsung ke API server dari 0.0.0.0/0 - dipakai sementara sebelum VPN jadi, TIDAK disarankan untuk production jangka panjang (RBAC/access entry tetap jadi lapisan proteksi, tapi API server-nya kebuka ke seluruh internet)."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "node_disk_size_gb" {
