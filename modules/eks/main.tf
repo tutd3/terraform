@@ -116,6 +116,15 @@ resource "aws_eks_node_group" "default" {
     max_size     = var.node_max_size
   }
 
+  dynamic "taint" {
+    for_each = var.node_group_system_taint ? [1] : []
+    content {
+      key    = "nodegroup/system"
+      value  = "false"
+      effect = "NO_SCHEDULE"
+    }
+  }
+
   depends_on = [
     aws_iam_role_policy_attachment.node_worker,
     aws_iam_role_policy_attachment.node_cni,
@@ -161,6 +170,23 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
+locals {
+  # Toleration yang cocok dengan taint nodegroup/system=false:NoSchedule di
+  # atas - cuma dipasang ke addon yang MEMANG perlu (CoreDNS, EBS CSI
+  # controller). kube-proxy & vpc-cni SENGAJA tidak disentuh - keduanya sudah
+  # toleransi semua taint secara default dari AWS (bukan field yang bisa
+  # dikonfigurasi di configuration_values-nya), karena wajib jalan di semua
+  # node demi networking inti cluster.
+  system_node_toleration = [
+    {
+      key      = "nodegroup/system"
+      operator = "Equal"
+      value    = "false"
+      effect   = "NoSchedule"
+    }
+  ]
+}
+
 resource "aws_eks_addon" "ebs_csi" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "aws-ebs-csi-driver"
@@ -169,10 +195,19 @@ resource "aws_eks_addon" "ebs_csi" {
 
   # Instance kecil (mis. t3.micro) tidak cukup slot pod/memori untuk 2 replica
   # controller. 1 replica cukup untuk dev, tidak butuh HA.
+  #
+  # Toleration di "controller" (BUKAN "node") - controller cuma perlu jalan
+  # di SATU tempat (tidak harus di semua node), jadi boleh ditempatkan di
+  # node group sistem yang di-taint. Komponen "node" (daemonset per-node
+  # untuk mount volume) SENGAJA tidak dikasih toleration di sini - defaultnya
+  # cuma toleransi taint NoExecute, bukan NoSchedule, jadi tidak akan jalan
+  # di node group sistem ini (memang tidak dibutuhkan kalau tidak ada pod
+  # butuh PVC di situ).
   configuration_values = jsonencode({
-    controller = {
-      replicaCount = var.small_instance_mode ? 1 : 2
-    }
+    controller = merge(
+      { replicaCount = var.small_instance_mode ? 1 : 2 },
+      var.node_group_system_taint ? { tolerations = local.system_node_toleration } : {},
+    )
   })
 
   depends_on = [aws_eks_node_group.default]
@@ -206,9 +241,14 @@ resource "aws_eks_addon" "coredns" {
   addon_name                  = "coredns"
   resolve_conflicts_on_update = "OVERWRITE"
 
-  configuration_values = jsonencode({
-    replicaCount = var.small_instance_mode ? 1 : 2
-  })
+  # CoreDNS defaultnya sudah toleransi taint "CriticalAddonsOnly", TAPI tidak
+  # toleransi taint custom "nodegroup/system" yang dipasang di atas - jadi
+  # tetap perlu toleration eksplisit di sini kalau node_group_system_taint
+  # aktif, supaya CoreDNS tetap bisa dijadwalkan ke node group sistem ini.
+  configuration_values = jsonencode(merge(
+    { replicaCount = var.small_instance_mode ? 1 : 2 },
+    var.node_group_system_taint ? { tolerations = local.system_node_toleration } : {},
+  ))
 
   depends_on = [aws_eks_node_group.default]
 }
@@ -217,6 +257,59 @@ resource "aws_eks_addon" "kube_proxy" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "kube-proxy"
   resolve_conflicts_on_update = "OVERWRITE"
+}
+
+# --- IRSA role untuk AWS Load Balancer Controller: supaya Ingress (-> ALB)
+#     dan Service type=LoadBalancer (-> NLB) bisa di-provision otomatis dari
+#     resource Kubernetes. Controller-nya SENDIRI (pod + Helm chart) belum
+#     ter-install di sini - role ini cuma menyiapkan identitas IAM-nya,
+#     controller-nya perlu di-install terpisah (mis. lewat helm) dan service
+#     account-nya (kube-system/aws-load-balancer-controller) di-annotate
+#     dengan ARN role ini (lihat output lb_controller_role_arn).
+#
+# Policy-nya diambil PERSIS dari sumber resmi AWS (bukan ditulis manual) -
+# lihat modules/eks/files/aws-load-balancer-controller-iam-policy.json,
+# dari https://github.com/kubernetes-sigs/aws-load-balancer-controller
+# (docs/install/iam_policy.json) - jauh lebih lengkap dari sekadar
+# elasticloadbalancing:* (ada ACM, WAF, Cognito, shield, dll untuk fitur
+# Ingress lanjutan).
+data "aws_iam_policy_document" "lb_controller_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.cluster.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(aws_iam_openid_connect_provider.cluster.url, "https://", "")}:sub"
+      values   = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(aws_iam_openid_connect_provider.cluster.url, "https://", "")}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "lb_controller" {
+  name               = "${var.cluster_name}-lb-controller-role"
+  assume_role_policy = data.aws_iam_policy_document.lb_controller_assume.json
+}
+
+resource "aws_iam_policy" "lb_controller" {
+  name   = "${var.cluster_name}-lb-controller-policy"
+  policy = file("${path.module}/files/aws-load-balancer-controller-iam-policy.json")
+}
+
+resource "aws_iam_role_policy_attachment" "lb_controller" {
+  role       = aws_iam_role.lb_controller.name
+  policy_arn = aws_iam_policy.lb_controller.arn
 }
 
 # --- Akses Kubernetes API untuk principal lain (selain role CI yang bikin
