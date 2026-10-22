@@ -57,6 +57,12 @@ variable "small_instance_mode" {
   default     = false
 }
 
+variable "node_group_system_taint" {
+  description = "Set true untuk kasih taint nodegroup/system=false:NoSchedule ke node group default - menjadikan node group ini KHUSUS buat addon sistem (CoreDNS, EBS CSI controller - sudah dikasih toleration yang cocok di modul ini). kube-proxy & vpc-cni tidak perlu toleration tambahan (sudah toleransi semua taint by default dari AWS). PENTING: kalau ini node group SATU-SATUNYA di cluster, pod aplikasi biasa (tanpa toleration yang sama) tidak akan bisa di-schedule sama sekali sampai ada node group lain yang tidak di-taint."
+  type        = bool
+  default     = false
+}
+
 variable "admin_principal_arns" {
   description = "Daftar IAM principal ARN (user/role/root) yang diberi akses admin penuh ke Kubernetes API cluster ini lewat EKS Access Entry. Role yang membuat cluster (CI) otomatis sudah dapat akses - ini untuk principal LAIN, mis. root user akun AWS supaya bisa lihat resource Kubernetes di AWS Console."
   type        = list(string)

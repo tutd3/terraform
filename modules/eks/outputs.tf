@@ -21,3 +21,8 @@ output "node_role_arn" {
 output "cluster_role_name" {
   value = aws_iam_role.cluster.name
 }
+
+output "lb_controller_role_arn" {
+  description = "ARN role IRSA untuk AWS Load Balancer Controller - pakai ini buat annotate service account kube-system/aws-load-balancer-controller saat install controller-nya (lihat modules/eks/main.tf)."
+  value       = aws_iam_role.lb_controller.arn
+}
