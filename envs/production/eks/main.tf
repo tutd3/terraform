@@ -20,6 +20,7 @@ module "eks" {
   node_instance_types     = var.node_instance_types
   small_instance_mode     = true # t3.micro - Free Tier, addon turun ke 1 replica + VPC CNI prefix delegation
   node_group_system_taint = true # node group default khusus addon sistem (CoreDNS, EBS CSI controller)
+  enable_karpenter        = true # node aplikasi di-provision dinamis oleh Karpenter, bukan node group static
   node_disk_size_gb       = var.node_disk_size_gb
   vpc_cidr                = data.terraform_remote_state.vpc.outputs.vpc_cidr
   enable_network_policy   = true
