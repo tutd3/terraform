@@ -26,10 +26,36 @@ module "eks" {
   admin_principal_arns = concat(
     var.admin_principal_arns, # mis. root user, lihat variables.tf
     values(data.terraform_remote_state.iam.outputs.admin_user_arns),
+    [data.terraform_remote_state.iam.outputs.eks_cluster_role_arn],
   )
   viewer_principal_arns = values(data.terraform_remote_state.iam.outputs.readonly_user_arns)
 
   tags = {
     Environment = "production"
   }
+}
+
+# Izin tambahan untuk role control plane cluster ini, supaya bisa bikin/kelola
+# AWS Load Balancer dari resource Kubernetes (mis. Service type=LoadBalancer).
+data "aws_iam_policy_document" "cluster_load_balancer_access" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "elasticloadbalancing:*",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeVpcs",
+      "ec2:DescribeSecurityGroups",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "cluster_load_balancer_access" {
+  name   = "wetech-service-kubernetes-prod-load-balance-access"
+  policy = data.aws_iam_policy_document.cluster_load_balancer_access.json
+}
+
+resource "aws_iam_role_policy_attachment" "cluster_load_balancer_access" {
+  role       = module.eks.cluster_role_name
+  policy_arn = aws_iam_policy.cluster_load_balancer_access.arn
 }
