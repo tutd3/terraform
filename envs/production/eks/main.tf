@@ -21,10 +21,14 @@ module "eks" {
   small_instance_mode     = true # t3.micro - Free Tier, addon turun ke 1 replica + VPC CNI prefix delegation
   node_group_system_taint = true # node group default khusus addon sistem (CoreDNS, EBS CSI controller)
   enable_karpenter        = true # node aplikasi di-provision dinamis oleh Karpenter, bukan node group static
-  node_disk_size_gb       = var.node_disk_size_gb
-  vpc_cidr                = data.terraform_remote_state.vpc.outputs.vpc_cidr
-  enable_network_policy   = true
-  enable_public_access    = var.enable_public_access
+  lb_controller_namespace_patterns = [
+    "kube-system",
+    "foundation*", # repo deploy LBC ke namespace sesuai nama direktori (mis. "foundation")
+  ]
+  node_disk_size_gb     = var.node_disk_size_gb
+  vpc_cidr              = data.terraform_remote_state.vpc.outputs.vpc_cidr
+  enable_network_policy = true
+  enable_public_access  = var.enable_public_access
   admin_principal_arns = concat(
     var.admin_principal_arns, # mis. root user, lihat variables.tf
     values(data.terraform_remote_state.iam.outputs.admin_user_arns),

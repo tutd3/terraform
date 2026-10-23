@@ -264,8 +264,11 @@ resource "aws_eks_addon" "kube_proxy" {
 #     resource Kubernetes. Controller-nya SENDIRI (pod + Helm chart) belum
 #     ter-install di sini - role ini cuma menyiapkan identitas IAM-nya,
 #     controller-nya perlu di-install terpisah (mis. lewat helm) dan service
-#     account-nya (kube-system/aws-load-balancer-controller) di-annotate
-#     dengan ARN role ini (lihat output lb_controller_role_arn).
+#     account-nya di-annotate dengan ARN role ini (lihat output
+#     lb_controller_role_arn). WAJIB pakai nama release Helm
+#     "aws-load-balancer-controller" (nama service account ikut nama release
+#     itu) - lihat var.lb_controller_namespace_patterns untuk namespace mana
+#     saja yang diizinkan.
 #
 # Policy-nya diambil PERSIS dari sumber resmi AWS (bukan ditulis manual) -
 # lihat modules/eks/files/aws-load-balancer-controller-iam-policy.json,
@@ -283,10 +286,21 @@ data "aws_iam_policy_document" "lb_controller_assume" {
       identifiers = [aws_iam_openid_connect_provider.cluster.arn]
     }
 
+    # StringLike (bukan StringEquals) - tiap elemen var.lb_controller_namespace_patterns
+    # boleh pakai wildcard "*", mis. "foundation*" supaya cocok semua namespace
+    # berawalan "foundation" tanpa perlu edit Terraform tiap kali ada namespace
+    # baru dengan pola itu. HATI-HATI: siapa pun yang bisa bikin ServiceAccount
+    # bernama "aws-load-balancer-controller" di namespace yang cocok pattern
+    # ini otomatis dapat semua izin LB Controller (lihat policy resmi di
+    # files/aws-load-balancer-controller-iam-policy.json - cukup powerful:
+    # bikin/hapus ALB, ubah security group, dll).
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "${replace(aws_iam_openid_connect_provider.cluster.url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
+      values = [
+        for ns in var.lb_controller_namespace_patterns :
+        "system:serviceaccount:${ns}:aws-load-balancer-controller"
+      ]
     }
 
     condition {

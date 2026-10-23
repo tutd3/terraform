@@ -92,6 +92,12 @@ variable "node_sg_allow_web_public" {
   default     = true
 }
 
+variable "lb_controller_namespace_patterns" {
+  description = "Daftar pattern namespace (boleh wildcard \"*\", mis. \"foundation*\") yang diizinkan menjalankan AWS Load Balancer Controller dan assume role IRSA-nya. Nama service account WAJIB persis \"aws-load-balancer-controller\" (ikut nama release Helm). HATI-HATI dengan wildcard longgar - siapa pun yang bisa bikin ServiceAccount dengan nama itu di namespace yang cocok pattern otomatis dapat akses penuh LB Controller (bikin/hapus ALB, ubah security group, dll)."
+  type        = list(string)
+  default     = ["kube-system"]
+}
+
 variable "enable_network_policy" {
   description = "Aktifkan kapasitas enforce Kubernetes NetworkPolicy lewat vpc-cni (tidak perlu Calico/Cilium tambahan). Tidak ada efek sampai ada objek NetworkPolicy yang dibuat lewat kubectl."
   type        = bool
