@@ -62,6 +62,28 @@ resource "aws_iam_role_policy_attachment" "karpenter_node" {
   policy_arn = each.value
 }
 
+# --- Access entry untuk role node Karpenter sendiri (BEDA dari access entry
+#     admin/viewer manusia di bawah) ---
+#
+# Node yang di-launch Karpenter itu EC2 instance biasa, BUKAN bagian dari
+# managed node group (aws_eks_node_group) - AWS TIDAK otomatis daftarkan
+# node seperti ini supaya bisa "join" ke Kubernetes API. Tanpa access entry
+# ini, instance akan ke-launch tapi tidak pernah jadi Ready node Kubernetes
+# (gagal autentikasi ke API server) - persis gejala "ResourceNotFoundException"
+# kalau dicek pakai describe-access-entry.
+#
+# type = "EC2_LINUX" itu tipe KHUSUS buat node (setara mapping
+# system:bootstrappers/system:nodes di aws-auth ConfigMap cara lama) - BUKAN
+# "STANDARD" seperti access entry manusia di bawah, dan TIDAK butuh
+# access_policy_association (tipe ini tidak dipasangkan ke cluster-access-policy
+# apa pun, beda dari access entry manusia).
+resource "aws_eks_access_entry" "karpenter_node" {
+  count         = var.enable_karpenter ? 1 : 0
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = aws_iam_role.karpenter_node[0].arn
+  type          = "EC2_LINUX"
+}
+
 # --- SQS queue untuk interruption notification (spot interruption, instance
 #     state-change, rebalance recommendation, AWS Health event, dll) ---
 resource "aws_sqs_queue" "karpenter_interruption" {
