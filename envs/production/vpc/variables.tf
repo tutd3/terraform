@@ -59,5 +59,14 @@ variable "additional_private_routes" {
     vpc_peering_connection_id = optional(string)
     network_interface_id      = optional(string)
   }))
-  default = []
+  # CONTOH SAJA - PR ini tidak dimaksudkan untuk di-merge. pcx-02e2bda5882a1f797
+  # ada di akun AWS LAIN (bukan akun yang dikelola repo ini), cuma
+  # menunjukkan DI MANA isi route peering ditaruh dan formatnya seperti apa
+  # (cidr_block + vpc_peering_connection_id, field target lain dikosongkan).
+  default = [
+    {
+      cidr_block                = "172.10.0.0/16"
+      vpc_peering_connection_id = "pcx-02e2bda5882a1f797"
+    }
+  ]
 }
