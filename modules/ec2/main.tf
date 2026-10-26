@@ -85,12 +85,13 @@ resource "aws_iam_role_policy_attachment" "additional" {
 
 # Policy custom inline - cocok buat izin yang cuma relevan ke instance ini
 # sendiri (mis. akses 1 bucket S3 tertentu), tidak perlu bikin managed policy
-# terpisah kalau memang tidak mau dipakai ulang di tempat lain.
+# terpisah kalau memang tidak mau dipakai ulang di tempat lain. Bisa lebih
+# dari satu - tiap key di var.inline_iam_policies jadi 1 policy terpisah.
 resource "aws_iam_role_policy" "additional" {
-  count  = var.enable_ssm && var.inline_iam_policy_json != null ? 1 : 0
-  name   = "${var.name}-custom-policy"
-  role   = aws_iam_role.ssm[0].name
-  policy = var.inline_iam_policy_json
+  for_each = var.enable_ssm ? var.inline_iam_policies : {}
+  name     = "${var.name}-${each.key}"
+  role     = aws_iam_role.ssm[0].name
+  policy   = each.value
 }
 
 resource "aws_iam_instance_profile" "ssm" {

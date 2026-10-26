@@ -89,10 +89,10 @@ variable "additional_iam_policy_arns" {
   default     = []
 }
 
-variable "inline_iam_policy_json" {
-  description = "JSON policy document custom (hasil jsonencode/aws_iam_policy_document) yang mau di-attach inline ke role instance ini - cocok buat izin spesifik yang cuma dipakai instance ini sendiri, mis. akses ke satu bucket S3 tertentu buat backup. Kosongkan (null) kalau tidak perlu. HANYA berlaku kalau enable_ssm=true."
-  type        = string
-  default     = null
+variable "inline_iam_policies" {
+  description = "Map nama -> JSON policy document custom (hasil jsonencode/aws_iam_policy_document) yang mau di-attach inline ke role instance ini - bisa lebih dari satu, tiap key jadi nama policy terpisah. Cocok buat izin spesifik yang cuma dipakai instance ini sendiri, mis. akses ke satu bucket S3 tertentu buat backup. Kosongkan ({}) kalau tidak perlu. HANYA berlaku kalau enable_ssm=true."
+  type        = map(string)
+  default     = {}
 }
 
 variable "tags" {
