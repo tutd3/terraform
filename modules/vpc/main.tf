@@ -37,6 +37,15 @@ resource "aws_subnet" "public" {
     },
     var.cluster_tag != "" ? { "kubernetes.io/cluster/${var.cluster_tag}" = "shared" } : {}
   )
+
+  # Tag "karpenter.sh/discovery" ditambahkan TERPISAH oleh stack eks (lewat
+  # aws_ec2_tag, bukan di sini) - stack vpc ini tidak tahu-menahu soal tag
+  # itu. Tanpa ignore_changes ini, apply apa pun di stack vpc (termasuk yang
+  # sama sekali tidak terkait EKS/Karpenter) akan "membetulkan" tags balik ke
+  # definisi di atas dan IKUT MENGHAPUS tag itu.
+  lifecycle {
+    ignore_changes = [tags["karpenter.sh/discovery"]]
+  }
 }
 
 resource "aws_subnet" "private" {
@@ -55,6 +64,16 @@ resource "aws_subnet" "private" {
     },
     var.cluster_tag != "" ? { "kubernetes.io/cluster/${var.cluster_tag}" = "shared" } : {}
   )
+
+  # Tag "karpenter.sh/discovery" ditambahkan TERPISAH oleh stack eks (lewat
+  # aws_ec2_tag, bukan di sini) - stack vpc ini tidak tahu-menahu soal tag
+  # itu. Tanpa ignore_changes ini, apply apa pun di stack vpc (termasuk yang
+  # sama sekali tidak terkait EKS/Karpenter) akan "membetulkan" tags balik ke
+  # definisi di atas dan IKUT MENGHAPUS tag itu - padahal Karpenter masih
+  # butuh buat subnet discovery.
+  lifecycle {
+    ignore_changes = [tags["karpenter.sh/discovery"]]
+  }
 }
 
 resource "aws_eip" "nat" {
