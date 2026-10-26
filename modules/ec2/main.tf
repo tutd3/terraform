@@ -75,6 +75,25 @@ resource "aws_iam_role_policy_attachment" "ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# Policy tambahan (managed, sudah ada) selain AmazonSSMManagedInstanceCore -
+# mis. untuk instance yang butuh izin spesifik seperti akses S3 backup.
+resource "aws_iam_role_policy_attachment" "additional" {
+  for_each   = var.enable_ssm ? toset(var.additional_iam_policy_arns) : toset([])
+  role       = aws_iam_role.ssm[0].name
+  policy_arn = each.value
+}
+
+# Policy custom inline - cocok buat izin yang cuma relevan ke instance ini
+# sendiri (mis. akses 1 bucket S3 tertentu), tidak perlu bikin managed policy
+# terpisah kalau memang tidak mau dipakai ulang di tempat lain. Bisa lebih
+# dari satu - tiap key di var.inline_iam_policies jadi 1 policy terpisah.
+resource "aws_iam_role_policy" "additional" {
+  for_each = var.enable_ssm ? var.inline_iam_policies : {}
+  name     = "${var.name}-${each.key}"
+  role     = aws_iam_role.ssm[0].name
+  policy   = each.value
+}
+
 resource "aws_iam_instance_profile" "ssm" {
   count = var.enable_ssm ? 1 : 0
   name  = "${var.name}-ssm-profile"

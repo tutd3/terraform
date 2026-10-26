@@ -83,6 +83,18 @@ variable "additional_security_group_ids" {
   default     = []
 }
 
+variable "additional_iam_policy_arns" {
+  description = "ARN IAM policy tambahan (AWS managed atau customer managed yang sudah ada) yang mau di-attach ke role instance ini, selain AmazonSSMManagedInstanceCore. HANYA berlaku kalau enable_ssm=true (modul cuma bikin role-nya sendiri di jalur itu) - diabaikan kalau enable_ssm=false."
+  type        = list(string)
+  default     = []
+}
+
+variable "inline_iam_policies" {
+  description = "Map nama -> JSON policy document custom (hasil jsonencode/aws_iam_policy_document) yang mau di-attach inline ke role instance ini - bisa lebih dari satu, tiap key jadi nama policy terpisah. Cocok buat izin spesifik yang cuma dipakai instance ini sendiri, mis. akses ke satu bucket S3 tertentu buat backup. Kosongkan ({}) kalau tidak perlu. HANYA berlaku kalau enable_ssm=true."
+  type        = map(string)
+  default     = {}
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
