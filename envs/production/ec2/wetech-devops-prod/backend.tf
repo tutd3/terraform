@@ -41,14 +41,9 @@ data "terraform_remote_state" "vpc" {
   }
 }
 
-# Baca ARN repository ECR - dibutuhkan untuk scope policy push image di
-# instance ini (lihat main.tf, inline_iam_policies).
-data "terraform_remote_state" "ecr" {
-  backend = "s3"
-
-  config = {
-    bucket = "tutd3-terraform-state-094983223261"
-    key    = "envs/production/ecr/wetech-b2b-cron/terraform.tfstate"
-    region = "ap-southeast-3"
-  }
-}
+# Dibutuhkan untuk bangun ARN wildcard semua ECR repository di akun &
+# region ini (lihat main.tf, inline_iam_policies) - termasuk repository
+# yang dibuat MANUAL (bukan lewat Terraform), bukan cuma yang di-manage di
+# envs/production/ecr/*.
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}

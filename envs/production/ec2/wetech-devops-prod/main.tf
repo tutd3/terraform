@@ -46,10 +46,13 @@ module "wetech_devops_prod" {
   ]
 
   # Instance ini jadi GitHub Actions self-hosted runner - build image lalu
-  # push ke ECR. Dibatasi cuma ke 1 repository (wetech-b2b-cron), bukan ke
-  # semua ECR di akun ini.
+  # push ke ECR. SENGAJA wildcard ke SEMUA repository ECR di akun & region
+  # ini (bukan dibatasi 1 repo) - termasuk repository yang ditambah MANUAL
+  # (bukan lewat stack envs/production/ecr/*), supaya tidak perlu update
+  # Terraform tiap kali ada repository baru. Trade-off: runner ini bisa
+  # push/pull ke ECR repo APA PUN di akun ini, bukan cuma yang "miliknya".
   inline_iam_policies = {
-    ecr-push-wetech-b2b-cron = jsonencode({
+    ecr-push-pull-all = jsonencode({
       Version = "2012-10-17"
       Statement = [
         {
@@ -59,7 +62,7 @@ module "wetech_devops_prod" {
           Resource = "*"
         },
         {
-          Sid    = "ECRPushPullScoped"
+          Sid    = "ECRPushPullAllRepositories"
           Effect = "Allow"
           Action = [
             "ecr:BatchCheckLayerAvailability",
@@ -70,7 +73,7 @@ module "wetech_devops_prod" {
             "ecr:BatchGetImage",
             "ecr:GetDownloadUrlForLayer",
           ]
-          Resource = data.terraform_remote_state.ecr.outputs.repository_arn
+          Resource = "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/*"
         }
       ]
     })
