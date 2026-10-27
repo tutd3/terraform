@@ -188,6 +188,13 @@ resource "aws_iam_policy" "github_actions_terraform" {
         Effect   = "Allow"
         Action   = "events:*"
         Resource = "*"
+      },
+      {
+        # Dibutuhkan modules/ecr untuk bikin/kelola ECR repository.
+        Sid      = "ECR"
+        Effect   = "Allow"
+        Action   = "ecr:*"
+        Resource = "*"
       }
     ]
   })
