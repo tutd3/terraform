@@ -14,8 +14,9 @@
 #
 # Usage  : affected-stacks.sh <env> <file-berisi-daftar-path-yang-berubah>
 # Output : 1 baris per stack yang kena dampak (mis. "vpc", "s3/app"), urutan
-#          TETAP vpc -> iam -> s3/* -> ec2/* -> eks, tanpa duplikat. Kosong
-#          (tanpa output) kalau tidak ada stack yang kena di environment ini.
+#          TETAP vpc -> iam -> s3/* -> ecr/* -> ec2/* -> eks, tanpa duplikat.
+#          Kosong (tanpa output) kalau tidak ada stack yang kena di
+#          environment ini.
 
 set -euo pipefail
 
@@ -31,6 +32,10 @@ all_stacks=()
 for d in "$base"/s3/*/; do
   [ -d "$d" ] || continue
   all_stacks+=("s3/$(basename "$d")")
+done
+for d in "$base"/ecr/*/; do
+  [ -d "$d" ] || continue
+  all_stacks+=("ecr/$(basename "$d")")
 done
 for d in "$base"/ec2/*/; do
   [ -d "$d" ] || continue

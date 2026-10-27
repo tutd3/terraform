@@ -40,3 +40,15 @@ data "terraform_remote_state" "vpc" {
     region = "ap-southeast-3"
   }
 }
+
+# Baca ARN repository ECR - dibutuhkan untuk scope policy push image di
+# instance ini (lihat main.tf, inline_iam_policies).
+data "terraform_remote_state" "ecr" {
+  backend = "s3"
+
+  config = {
+    bucket = "tutd3-terraform-state-094983223261"
+    key    = "envs/production/ecr/wetech-b2b-cron/terraform.tfstate"
+    region = "ap-southeast-3"
+  }
+}

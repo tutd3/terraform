@@ -45,6 +45,37 @@ module "wetech_devops_prod" {
     "sg-0161da61ad4b601fd",
   ]
 
+  # Instance ini jadi GitHub Actions self-hosted runner - build image lalu
+  # push ke ECR. Dibatasi cuma ke 1 repository (wetech-b2b-cron), bukan ke
+  # semua ECR di akun ini.
+  inline_iam_policies = {
+    ecr-push-wetech-b2b-cron = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Sid      = "ECRAuth"
+          Effect   = "Allow"
+          Action   = "ecr:GetAuthorizationToken"
+          Resource = "*"
+        },
+        {
+          Sid    = "ECRPushPullScoped"
+          Effect = "Allow"
+          Action = [
+            "ecr:BatchCheckLayerAvailability",
+            "ecr:InitiateLayerUpload",
+            "ecr:UploadLayerPart",
+            "ecr:CompleteLayerUpload",
+            "ecr:PutImage",
+            "ecr:BatchGetImage",
+            "ecr:GetDownloadUrlForLayer",
+          ]
+          Resource = data.terraform_remote_state.ecr.outputs.repository_arn
+        }
+      ]
+    })
+  }
+
   tags = {
     Environment = "production"
     Service     = var.service_name
