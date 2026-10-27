@@ -13,8 +13,9 @@ on:
         description: >-
           Stack yang mau di-apply, pisah spasi/koma: vpc, iam, eks (atau k8s),
           s3 (semua bucket) / s3/<nama> (satu bucket, mis. "s3/loki-logs"),
-          ec2 (semua instance) / ec2/<nama> (satu instance, mis. "ec2/psql").
-          Kosongkan untuk apply semua.
+          ecr (semua repository) / ecr/<nama> (satu repository, mis.
+          "ecr/wetech-b2b-cron"), ec2 (semua instance) / ec2/<nama> (satu
+          instance, mis. "ec2/psql"). Kosongkan untuk apply semua.
         required: false
         type: string
       environment:
@@ -94,16 +95,18 @@ jobs:
       #     kapan pun dibutuhkan (mis. recovery, atau re-apply tanpa ada
       #     perubahan kode).
       #
-      # "s3" dan "ec2" itu KATEGORI, bukan satu stack - bisa ada banyak
-      # instance dengan tujuan beda-beda di envs/<env>/<kategori>/<nama>/
-      # (mis. s3/app, s3/loki-logs, ec2/example, ec2/psql). Untuk trigger
-      # manual, tulis nama kategorinya saja untuk apply SEMUA instance di
-      # situ, atau "<kategori>/<nama>" untuk satu instance spesifik saja.
+      # "s3", "ecr", dan "ec2" itu KATEGORI, bukan satu stack - bisa ada
+      # banyak instance dengan tujuan beda-beda di envs/<env>/<kategori>/<nama>/
+      # (mis. s3/app, s3/loki-logs, ecr/wetech-b2b-cron, ec2/example, ec2/psql).
+      # Untuk trigger manual, tulis nama kategorinya saja untuk apply SEMUA
+      # instance di situ, atau "<kategori>/<nama>" untuk satu instance
+      # spesifik saja.
       #
-      # Urutan eksekusi SELALU vpc -> iam -> s3/* -> ec2/* -> eks, apa pun
-      # urutan di input, karena eks & ec2 baca output vpc lewat
-      # terraform_remote_state. iam tidak bergantung stack lain.
-      - name: "Terraform Apply (urutan tetap: vpc -> iam -> s3/* -> ec2/* -> eks)"
+      # Urutan eksekusi SELALU vpc -> iam -> s3/* -> ecr/* -> ec2/* -> eks,
+      # apa pun urutan di input, karena eks & ec2 baca output vpc (dan
+      # beberapa ec2 baca output ecr) lewat terraform_remote_state. iam tidak
+      # bergantung stack lain.
+      - name: "Terraform Apply (urutan tetap: vpc -> iam -> s3/* -> ecr/* -> ec2/* -> eks)"
         env:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
@@ -147,7 +150,7 @@ jobs:
               exit 0
             fi
           else
-            RAW="${DISPATCH_STACKS:-${DEFAULT_STACKS:-vpc iam s3 ec2 eks}}"
+            RAW="${DISPATCH_STACKS:-${DEFAULT_STACKS:-vpc iam s3 ecr ec2 eks}}"
             # Normalisasi: lowercase, koma -> spasi, alias k8s -> eks
             RAW="$(echo "$RAW" | tr '[:upper:]' '[:lower:]' | tr ',' ' ' | sed 's/k8s/eks/g')"
             SELECTED=" $RAW "
@@ -158,7 +161,7 @@ jobs:
             # Setiap subfolder di envs/<env>/<kategori>/ adalah instance
             # sendiri, dengan tujuan masing-masing (nama folder = nama
             # tujuannya).
-            for category in s3 ec2; do
+            for category in s3 ecr ec2; do
               for d in "$BASE/$category"/*/; do
                 [ -d "$d" ] || continue
                 name="$(basename "$d")"
@@ -171,7 +174,7 @@ jobs:
             case "$SELECTED" in *" eks "*) DIRS+=("$BASE/eks") ;; esac
 
             if [ ${#DIRS[@]} -eq 0 ]; then
-              echo "::error::Tidak ada stack valid di input '$RAW' (pilihan: vpc, iam, s3 atau s3/<nama>, ec2 atau ec2/<nama>, eks/k8s)"
+              echo "::error::Tidak ada stack valid di input '$RAW' (pilihan: vpc, iam, s3 atau s3/<nama>, ecr atau ecr/<nama>, ec2 atau ec2/<nama>, eks/k8s)"
               exit 1
             fi
           fi

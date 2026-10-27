@@ -22,9 +22,10 @@ on:
         description: >-
           WAJIB diisi - stack yang mau DIHANCURKAN, pisah spasi/koma: vpc,
           iam, eks (atau k8s), s3 (semua bucket) / s3/<nama> (satu bucket),
-          ec2 (semua instance) / ec2/<nama> (satu instance). Tulis "all"
-          untuk hancurkan SEMUA stack di environment ini. Beda dari Apply,
-          TIDAK ADA default "kosongkan untuk semua" - harus eksplisit.
+          ecr (semua repository) / ecr/<nama> (satu repository), ec2 (semua
+          instance) / ec2/<nama> (satu instance). Tulis "all" untuk
+          hancurkan SEMUA stack di environment ini. Beda dari Apply, TIDAK
+          ADA default "kosongkan untuk semua" - harus eksplisit.
         required: true
         type: string
       confirm:
@@ -91,13 +92,15 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      # Urutan destroy SELALU KEBALIKAN dari apply: eks -> ec2/* -> s3/* ->
-      # iam -> vpc. Ini WAJIB, bukan sekadar rapi - stack eks & ec2 baca
-      # output vpc (dan eks baca output iam) lewat terraform_remote_state,
-      # jadi vpc & iam harus dihancurkan PALING TERAKHIR, setelah semua yang
-      # bergantung padanya sudah tidak ada. Kalau vpc dihancurkan duluan,
-      # destroy eks/ec2 bisa gagal atau salah hitung dependency.
-      - name: "Terraform Destroy (urutan tetap: eks -> ec2/* -> s3/* -> iam -> vpc)"
+      # Urutan destroy SELALU KEBALIKAN dari apply: eks -> ec2/* -> ecr/* ->
+      # s3/* -> iam -> vpc. Ini WAJIB, bukan sekadar rapi - stack eks & ec2
+      # baca output vpc (dan eks baca output iam, beberapa ec2 baca output
+      # ecr) lewat terraform_remote_state, jadi vpc & iam harus dihancurkan
+      # PALING TERAKHIR, dan ecr dihancurkan SETELAH ec2 (bukan sebelum),
+      # setelah semua yang bergantung padanya sudah tidak ada. Kalau vpc
+      # dihancurkan duluan, destroy eks/ec2 bisa gagal atau salah hitung
+      # dependency.
+      - name: "Terraform Destroy (urutan tetap: eks -> ec2/* -> ecr/* -> s3/* -> iam -> vpc)"
         env:
           STACKS: ${{ github.event.inputs.stacks }}
           ENVIRONMENT: ${{ github.event.inputs.environment }}
@@ -113,16 +116,17 @@ jobs:
           # semua stack.
           RAW="$(echo "$STACKS" | tr '[:upper:]' '[:lower:]' | tr ',' ' ' | sed 's/k8s/eks/g')"
           SELECTED=" $RAW "
-          case "$SELECTED" in *" all "*) SELECTED=" vpc iam s3 ec2 eks " ;; esac
+          case "$SELECTED" in *" all "*) SELECTED=" vpc iam s3 ecr ec2 eks " ;; esac
 
           DIRS=()
 
           case "$SELECTED" in *" eks "*) DIRS+=("$BASE/eks") ;; esac
 
-          # ec2 sebelum s3 (kebalikan urutan apply: s3 sebelum ec2) - dua-duanya
-          # tidak saling bergantung jadi urutan di antara keduanya bebas,
-          # tapi tetap konsisten "kebalikan apply" biar gampang diingat.
-          for category in ec2 s3; do
+          # ec2 sebelum ecr sebelum s3 (kebalikan urutan apply: s3 -> ecr ->
+          # ec2) - beberapa ec2 baca output ecr lewat terraform_remote_state,
+          # jadi ec2 WAJIB dihancurkan dulu sebelum ecr. ecr & s3 sendiri
+          # tidak saling bergantung.
+          for category in ec2 ecr s3; do
             for d in "$BASE/$category"/*/; do
               [ -d "$d" ] || continue
               name="$(basename "$d")"
@@ -136,7 +140,7 @@ jobs:
           case "$SELECTED" in *" vpc "*) DIRS+=("$BASE/vpc") ;; esac
 
           if [ ${#DIRS[@]} -eq 0 ]; then
-            echo "::error::Tidak ada stack valid di input '$STACKS' (pilihan: vpc, iam, s3 atau s3/<nama>, ec2 atau ec2/<nama>, eks/k8s, atau 'all')"
+            echo "::error::Tidak ada stack valid di input '$STACKS' (pilihan: vpc, iam, s3 atau s3/<nama>, ecr atau ecr/<nama>, ec2 atau ec2/<nama>, eks/k8s, atau 'all')"
             exit 1
           fi
 
