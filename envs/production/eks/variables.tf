@@ -22,7 +22,10 @@ variable "node_instance_types" {
 variable "admin_principal_arns" {
   description = "IAM principal (selain role CI) yang diberi akses admin Kubernetes API, mis. root user akun AWS supaya bisa lihat resource di AWS Console."
   type        = list(string)
-  default     = ["arn:aws:iam::094983223261:root"]
+  default = [
+    "arn:aws:iam::094983223261:root",
+    "arn:aws:iam::094983223261:user/tutde",
+  ]
 }
 
 variable "enable_public_access" {
